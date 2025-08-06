@@ -1,0 +1,56 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    container_name: frontend
+    restart: always
+    environment:
+      - NODE_ENV=${ENVIRONMENT}
+      - SITE_URL=${SITE_URL}
+    ports:
+      - "${DOCKER_PORT_FRONTEND}:80"
+    depends_on:
+      - backend
+    env_file:
+      - .env
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    restart: always
+    environment:
+      - NODE_ENV=${ENVIRONMENT}
+      - SITE_URL=${SITE_URL}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_SECRET=${REDDIT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - MYSQL_HOST=mysql
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+    ports:
+      - "${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}"
+    depends_on:
+      - mysql
+    env_file:
+      - .env
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  mysql_data:
