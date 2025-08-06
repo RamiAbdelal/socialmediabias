@@ -5,7 +5,7 @@ services:
     container_name: frontend
     restart: always
     environment:
-      - NODE_ENV=${ENVIRONMENT}
+      - APP_ENV=${ENVIRONMENT}
       - SITE_URL=${SITE_URL}
     ports:
       - "${DOCKER_PORT_FRONTEND}:80"

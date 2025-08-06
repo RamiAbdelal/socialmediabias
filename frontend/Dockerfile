@@ -18,8 +18,6 @@ RUN npm run build
 FROM node:22-alpine3.21 AS runner
 WORKDIR /app
 
-ENV NODE_ENV=production
-
 # Copy only necessary files
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
