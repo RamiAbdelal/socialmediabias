@@ -1,116 +1,175 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+
+interface BiasScore {
+  score: number;
+  confidence: number;
+  label: string;
+}
+
+interface SignalResult {
+  signalType: string;
+  score: BiasScore;
+  summary: string;
+  examples: string[];
+}
+
+interface AnalysisResult {
+  communityName: string;
+  platform: string;
+  overallScore: BiasScore;
+  signalResults: SignalResult[];
+  analysisDate: string;
+}
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight text-center sm:text-left">
-          Welcome to{" "}
-          <span className="text-foreground/80 dark:text-white/80">
-            Social Media Bias Checkers
-          </span>
-        </h1>
-        <p className="text-lg sm:text-xl text-center sm:text-left">
-          Get started by editing{" "}
-          <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-            src/app/page.tsx
-          </code>
-          .
-        </p>
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [communityName, setCommunityName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const analyzeCommunity = async () => {
+    if (!communityName.trim()) return;
+    
+    setIsLoading(true);
+    setError(null);
+    setResult(null);
+    
+    try {
+      const response = await fetch(`http://localhost:9006/api/analyze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ communityName, platform: 'reddit' })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Analysis failed');
+      }
+      
+      const data = await response.json();
+      setResult(data);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      setError(error instanceof Error ? error.message : 'Analysis failed');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getBiasColor = (score: number) => {
+    if (score <= 2) return 'text-red-600';
+    if (score <= 4) return 'text-orange-600';
+    if (score <= 6) return 'text-yellow-600';
+    if (score <= 8) return 'text-blue-600';
+    return 'text-purple-600';
+  };
+
+  const getConfidenceColor = (confidence: number) => {
+    if (confidence >= 0.8) return 'text-green-600';
+    if (confidence >= 0.6) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">
+            Social Media Bias Analyzer
+          </h1>
+          <p className="text-lg text-gray-600">
+            Analyze political bias in social media communities
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        <div className="bg-white shadow rounded-lg p-6 mb-8">
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={communityName}
+              onChange={(e) => setCommunityName(e.target.value)}
+              placeholder="Enter subreddit name (e.g., politics)"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              onKeyPress={(e) => e.key === 'Enter' && analyzeCommunity()}
+            />
+            <button
+              onClick={analyzeCommunity}
+              disabled={isLoading || !communityName.trim()}
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Analyzing...' : 'Analyze'}
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Analysis Error</h3>
+                <div className="mt-2 text-sm text-red-700">{error}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-2xl font-semibold mb-6">Analysis Results</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium mb-2">Overall Bias Score</h3>
+                <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)}`}>
+                  {result.overallScore.score.toFixed(1)}/10
+                </div>
+                <div className="text-gray-600 capitalize">{result.overallScore.label}</div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="text-lg font-medium mb-2">Confidence</h3>
+                <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)}`}>
+                  {Math.round(result.overallScore.confidence * 100)}%
+                </div>
+                <div className="text-gray-600">Analysis confidence</div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4">Signal Breakdown</h3>
+              <div className="space-y-4">
+                {result.signalResults.map((signal, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <h4 className="font-medium">{signal.signalType}</h4>
+                      <div className={`text-lg font-semibold ${getBiasColor(signal.score.score)}`}>
+                        {signal.score.score.toFixed(1)}/10
+                      </div>
+                    </div>
+                    <p className="text-gray-600 text-sm mb-2">{signal.summary}</p>
+                    {signal.examples.length > 0 && (
+                      <div className="text-sm text-gray-500">
+                        <span className="font-medium">Examples:</span> {signal.examples.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="text-sm text-gray-500">
+              Analyzed: {result.communityName} on {result.platform} • {new Date(result.analysisDate).toLocaleString()}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

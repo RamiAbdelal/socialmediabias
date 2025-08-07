@@ -1,6 +1,6 @@
 # 🧠 Social Media Political Bias Analyzer
 
-This prompt should act as a living brief, specification document, setup guide, and roadmap. Update this prompt with any new changes and details reflected by new or modified files and folder structure so that it can continue acting as such.
+This context document should act as a living brief, spec sheet, setup guide, and roadmap. Update this context document with any new changes and details reflected by new or modified files and folder structure so that it can be standardised and used team-wide.
 
 ## 📝 User Story
 
