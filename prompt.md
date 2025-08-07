@@ -1,4 +1,5 @@
 # 🧠 Subreddit Political Bias Analyzer
+Update this prompt with any new changes and details added into the folder so that the prompt can act as a living brief and specification document, and setup guide.
 
 ## 📝 User Story
 
