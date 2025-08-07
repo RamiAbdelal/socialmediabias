@@ -1,11 +1,53 @@
-# 🧠 Subreddit Political Bias Analyzer
-Update this prompt with any new changes and details added into the folder so that the prompt can act as a living brief and specification document, and setup guide.
+# 🧠 Social Media Political Bias Analyzer
+
+This prompt should act as a living brief, specification document, setup guide, and roadmap. Update this prompt with any new changes and details reflected by new or modified files and folder structure so that it can continue acting as such.
 
 ## 📝 User Story
 
-As a politically curious user,  
-I want a small web application built with **Next.js** and **TypeScript**  
-So that I can enter a subreddit name and view an analysis of whether that subreddit leans left or right on a scale from 0 (far-left) to 10 (far-right).
+As a politically curious user who cares about impartiality,  
+I want a lightweight but scalable and expandable domain driven designed web application built with **Next.js** and **TypeScript** that can estimate the political bias of social media applications and communities, such as Reddit subreddits, Instagram pages, and X profiles.
+
+I want to be able to enter a social media community's name/URL, which will be a subreddit as an MVP, and view an analysis of whether that it leans left or right on a scale from 0 (far-left) to 10 (far-right) as an initial 'Core Metric' (including later perhaps Credibility, Demographics, Authoritarian vs Libertarian, Economy, etc...). 
+
+Analyses will come from data which will be derived from 'Signals' that can be used for any potential social media app if supported.
+
+Initial signal will be an MBFCSignal looking for links to other media websites and checking them against a Media Bias Fact Check (MBFC) sourced database.
+
+Secondly a RedditCommentSignal using social media discussions either by scraping or querying their public APIs to understand the context of the discussion and the proportion and intensity of variables like interest in, approval of, political sentiment towards the source material. This can be done by querying the an AI model, initially DeepSeek Chat, then OpenAI but possibly a HuggingFace model I was told could better judge political sentiment.
+
+Later an ImageSignal image searching a sample of image posts to check them for credibility, maybe against X posts with Community Notes suggesting lack of credibility, a Grok prompt, Snopes articles, or other sources like Google search.
+
+---
+
+## 🏗️ Domain-Driven Design Architecture
+
+### Core Domain: Bias Analysis Engine
+- **BiasAnalyzer**: Main orchestrator that combines multiple signals
+- **Signal Interface**: Abstract base for all bias detection signals
+- **BiasScore**: Value object representing 0-10 bias scale with confidence
+- **AnalysisResult**: Aggregate result with breakdown by signal type
+
+### Signal Implementations
+1. **MBFCSignal**: Media source bias detection
+   - Extracts URLs from social media posts
+   - Queries MBFC database for source bias ratings
+   - Aggregates weighted bias scores
+
+2. **RedditCommentSignal**: Community sentiment analysis
+   - Fetches comment chains from Reddit API
+   - Sends to AI models (DeepSeek → OpenAI → HuggingFace)
+   - Analyzes political sentiment and community tone
+
+3. **ImageSignal**: Visual content credibility (Future)
+   - Extracts images from posts
+   - Cross-references with fact-checking sources
+   - Community Notes, Snopes, Google search integration
+
+### Social Media Platform Adapters
+- **RedditAdapter**: MVP implementation
+- **InstagramAdapter**: Future implementation  
+- **XAdapter**: Future implementation
+- **PlatformInterface**: Abstract base for platform-specific logic
 
 ---
 
@@ -14,27 +56,32 @@ So that I can enter a subreddit name and view an analysis of whether that subred
 | Category                    | Details |
 |----------------------------|---------|
 | **Frontend**               | Next.js 15+ App Router, TailwindCSS v4 |
-|                            | Input for subreddit name |
+|                            | Input for social media community name/URL |
 |                            | Displays: bias score (0–10), label (e.g., "center-left") |
-|                            | Shows: source breakdown, comment examples, DeepSeek summaries |
-| **Backend**                | Node.js API routes with TypeScript |
-| **Reddit API Integration** | Fetch top 50 posts from the last 30 days |
-|                            | Extract: top, controversial, and comment chains |
-|                            | Use Reddit OAuth for extended rate limits |
-| **Bias Detection**         | Query MBFC (via cached dataset or scraping) |
-|                            | Aggregate source bias from external links |
-|                            | MBFC data stored in MySQL, loaded from JSON array |
-| **Community Attitude**     | Send comment chains to DeepSeek |
-|                            | Prompt: "Given this conversation, what is the political leaning and tone of the community?" |
-|                            | Get bias score + summary |
-| **Bias Score Logic**       | Combine source bias + comment bias |
-|                            | Normalize to a 0–10 score with optional confidence estimate |
-| **Results UI**             | Visual scale (0–10), primary sources, comment summaries |
-| **DevOps**                 | Local (WSL2) and Production (Ubuntu 22 VPS) deployment via Docker Compose |
-|                            | NGINX reverse proxy at `/etc/nginx/sites-available/socialmediabias` (symlinked to sites-enabled) |
-|                            | Port convention: 9005+ for this app, frontend on 9005, backend on 9006 |
+|                            | Shows: signal breakdown, source examples, AI summaries |
+|                            | Expandable UI for future metrics (Credibility, Demographics, etc.) |
+| **Backend**                | Domain-driven Node.js API with TypeScript |
+|                            | Signal-based architecture for extensibility |
+| **Platform Integration**   | Reddit API (MVP), Instagram/X (future) |
+|                            | Fetch top 50 posts from the last 30 days |
+|                            | Extract: posts, comments, external links, images |
+|                            | Use OAuth for extended rate limits |
+| **Signal Processing**      | MBFCSignal: URL extraction + MBFC database lookup |
+|                            | RedditCommentSignal: AI sentiment analysis |
+|                            | ImageSignal: Fact-checking integration (future) |
+| **AI Integration**         | DeepSeek Chat → OpenAI → HuggingFace pipeline |
+|                            | Prompt: "Analyze political sentiment and community tone" |
+|                            | Get bias score + confidence + summary |
+| **Bias Score Logic**       | Weighted combination of all active signals |
+|                            | Normalize to 0–10 score with confidence estimate |
+|                            | Support for multiple metrics (Core, Credibility, etc.) |
+| **Results UI**             | Visual scale (0–10), signal breakdown, examples |
+|                            | Expandable sections for future metrics |
+| **DevOps**                 | Local (WSL2) and Production (Ubuntu 22 VPS) deployment |
+|                            | NGINX reverse proxy configuration |
+|                            | Port convention: 9005+ for this app |
 |                            | All configuration managed from `.env` file |
-| **Automation**             | Reproducible with Makefile scripts for: DB export/import, NGINX testing, server deploys |
+| **Automation**             | Reproducible with Makefile scripts |
 
 ---
 
@@ -50,9 +97,14 @@ socialmediabias/
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
 │   ├── package.json           # React 19.1.0, Next.js 15.4.5
 │   └── tsconfig.json          # TypeScript configuration
-├── backend/                    # Express.js + TypeScript
+├── backend/                    # Express.js + TypeScript + Domain Design
 │   ├── src/
-│   │   └── index.ts           # Basic Express server (needs implementation)
+│   │   ├── domain/            # Domain-driven design core
+│   │   │   ├── signals/       # Signal implementations
+│   │   │   ├── platforms/     # Platform adapters
+│   │   │   └── analysis/      # Bias analysis engine
+│   │   ├── infrastructure/    # External integrations
+│   │   └── index.ts           # Express server setup
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
 │   ├── package.json           # Express 4.18.2, TypeScript
 │   └── tsconfig.json          # TypeScript configuration
@@ -67,19 +119,6 @@ socialmediabias/
 ├── Makefile                   # Automation scripts (empty)
 └── prompt.md                  # This specification document
 ```
-
-The updated prompt now reflects:
-
-1. **Current project structure** with actual implemented components
-2. **Real file locations** and configurations
-3. **Implementation status** showing what's completed vs. what needs work
-4. **Detailed setup guide** for both development and production
-5. **Actual MBFC dataset** that's included in the project
-6. **Current Docker configurations** with proper port mappings
-7. **Technology versions** (Next.js 15.4.5, React 19.1.0, etc.)
-8. **Missing components** that need to be implemented
-
-This serves as a comprehensive living brief that accurately represents the current state of your project and provides clear guidance for next steps.
 
 ---
 
@@ -100,8 +139,10 @@ REDDIT_CLIENT_ID=your_reddit_client_id
 REDDIT_SECRET=your_reddit_secret
 REDDIT_USER_AGENT=your_user_agent
 
-# DeepSeek
+# AI Models
 DEEPSEEK_API_KEY=your_deepseek_key
+OPENAI_API_KEY=your_openai_key
+HUGGINGFACE_API_KEY=your_huggingface_key
 
 # MySQL
 MYSQL_ROOT_PASSWORD=rootpassword
@@ -152,8 +193,8 @@ The `docker-compose.yml` orchestrates three services:
 ### 2. Environment Setup
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd socialmediabias
+mkdir socialmediabias && cd socialmediabias
+git clone git@github.com:RamiAbdelal/socialmediabias.git .
 
 # Create environment file
 cp .env.example .env  # Create from template
@@ -189,9 +230,9 @@ sudo systemctl reload nginx
 
 ---
 
-## 🔧 Implementation Status
+## 🏗️ Domain Implementation Roadmap
 
-### ✅ Completed
+### Phase 1: Core Infrastructure (Current)
 - [x] Project structure with Docker Compose
 - [x] Frontend: Next.js 15.4.5 + TypeScript + TailwindCSS v4
 - [x] Backend: Express.js + TypeScript setup
@@ -200,13 +241,29 @@ sudo systemctl reload nginx
 - [x] Environment variable configuration
 - [x] MBFC dataset (3.1MB JSON file)
 
-### 🚧 In Progress / Needs Implementation
-- [ ] Frontend: Subreddit input form and bias analysis UI
-- [ ] Backend: Reddit API integration and bias analysis logic
-- [ ] Database: MySQL schema and MBFC data loading
-- [ ] NGINX: Reverse proxy configuration
-- [ ] Makefile: Automation scripts for deployment
-- [ ] README.md: Project documentation
+### Phase 2: Domain Core (Next)
+- [ ] **Domain Models**: BiasScore, AnalysisResult, Signal interfaces
+- [ ] **MBFCSignal**: URL extraction and MBFC database integration
+- [ ] **Database Schema**: MySQL tables for MBFC data and analysis results
+- [ ] **Basic Frontend**: Social media input form and bias display
+
+### Phase 3: AI Integration
+- [ ] **RedditCommentSignal**: Reddit API integration + DeepSeek analysis
+- [ ] **AI Pipeline**: DeepSeek → OpenAI → HuggingFace fallback
+- [ ] **Sentiment Analysis**: Political bias detection from comments
+- [ ] **Signal Aggregation**: Weighted combination of MBFC + Comment signals
+
+### Phase 4: Platform Expansion
+- [ ] **InstagramAdapter**: Instagram API integration
+- [ ] **XAdapter**: X/Twitter API integration
+- [ ] **ImageSignal**: Visual content credibility analysis
+- [ ] **Advanced Metrics**: Credibility, Demographics, Authoritarian/Libertarian
+
+### Phase 5: Production & Scale
+- [ ] **NGINX**: Reverse proxy configuration
+- [ ] **Makefile**: Automation scripts for deployment
+- [ ] **Documentation**: Complete README.md with setup instructions
+- [ ] **Performance**: Caching, rate limiting, monitoring
 
 ---
 
@@ -319,16 +376,16 @@ By combining:
 - `Makefile` for automation
 - `nginx.conf` for networking
 - `mbfc-dataset-2025-08-05.json` for data
+- Domain-driven design for extensibility
 
-...this project is fully reproducible across local and VPS deployments with consistent behavior, environment-specific routing, and traceable DB change history.
+...this project is fully reproducible across local and VPS deployments with consistent behavior, environment-specific routing, traceable DB change history, and scalable architecture for future social media platforms.
 
 ---
 
 ## 🎯 Next Steps
 
-1. **Implement Frontend**: Create subreddit input form and bias analysis display
-2. **Implement Backend**: Add Reddit API integration and bias analysis endpoints
-3. **Setup Database**: Create MySQL schema and load MBFC data
-4. **Configure NGINX**: Set up reverse proxy configuration
-5. **Create Makefile**: Add automation scripts for deployment
-6. **Documentation**: Complete README.md with setup instructions
+1. **Domain Core**: Implement BiasScore, AnalysisResult, and Signal interfaces
+2. **MBFCSignal**: Create URL extraction and MBFC database integration
+3. **Database Schema**: Design MySQL tables for MBFC data and analysis results
+4. **Basic Frontend**: Create social media input form and bias display
+5. **RedditCommentSignal**: Implement Reddit API integration with DeepSeek analysis
