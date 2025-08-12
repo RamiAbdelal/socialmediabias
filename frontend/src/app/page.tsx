@@ -15,12 +15,22 @@ interface SignalResult {
   examples: string[];
 }
 
+interface RedditPost {
+  title: string;
+  url: string;
+  permalink: string;
+  author: string;
+  score: number;
+}
+
 interface AnalysisResult {
-  communityName: string;
-  platform: string;
-  overallScore: BiasScore;
-  signalResults: SignalResult[];
-  analysisDate: string;
+  communityName?: string;
+  platform?: string;
+  overallScore?: BiasScore;
+  signalResults?: SignalResult[];
+  analysisDate?: string;
+  redditPosts?: RedditPost[];
+  message?: string;
 }
 
 export default function Home() {
@@ -40,7 +50,7 @@ export default function Home() {
       const response = await fetch(`http://localhost:9006/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ communityName, platform: 'reddit' })
+        body: JSON.stringify({ redditUrl: communityName })
       });
       
       if (!response.ok) {
@@ -120,10 +130,9 @@ export default function Home() {
           </div>
         )}
 
-        {result && (
+        {result && result.overallScore && (
           <div className="bg-white shadow rounded-lg p-6">
             <h2 className="text-2xl font-semibold mb-6">Analysis Results</h2>
-            
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-medium mb-2">Overall Bias Score</h3>
@@ -132,7 +141,6 @@ export default function Home() {
                 </div>
                 <div className="text-gray-600 capitalize">{result.overallScore.label}</div>
               </div>
-              
               <div className="bg-gray-50 rounded-lg p-4">
                 <h3 className="text-lg font-medium mb-2">Confidence</h3>
                 <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)}`}>
@@ -141,32 +149,51 @@ export default function Home() {
                 <div className="text-gray-600">Analysis confidence</div>
               </div>
             </div>
-
-            <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4">Signal Breakdown</h3>
-              <div className="space-y-4">
-                {result.signalResults.map((signal, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="font-medium">{signal.signalType}</h4>
-                      <div className={`text-lg font-semibold ${getBiasColor(signal.score.score)}`}>
-                        {signal.score.score.toFixed(1)}/10
+            {result.signalResults && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-4">Signal Breakdown</h3>
+                <div className="space-y-4">
+                  {result.signalResults.map((signal, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="font-medium">{signal.signalType}</h4>
+                        <div className={`text-lg font-semibold ${getBiasColor(signal.score.score)}`}>
+                          {signal.score.score.toFixed(1)}/10
+                        </div>
                       </div>
+                      <p className="text-gray-600 text-sm mb-2">{signal.summary}</p>
+                      {signal.examples.length > 0 && (
+                        <div className="text-sm text-gray-500">
+                          <span className="font-medium">Examples:</span> {signal.examples.join(', ')}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-gray-600 text-sm mb-2">{signal.summary}</p>
-                    {signal.examples.length > 0 && (
-                      <div className="text-sm text-gray-500">
-                        <span className="font-medium">Examples:</span> {signal.examples.join(', ')}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-
+            )}
             <div className="text-sm text-gray-500">
-              Analyzed: {result.communityName} on {result.platform} • {new Date(result.analysisDate).toLocaleString()}
+              Analyzed: {result.communityName} on {result.platform}
+              {result.analysisDate ? ` • ${new Date(result.analysisDate).toLocaleString()}` : ''}
             </div>
+          </div>
+        )}
+
+        {result && !result.overallScore && result.redditPosts && (
+          <div className="bg-white shadow rounded-lg p-6">
+            <h2 className="text-2xl font-semibold mb-6">Reddit Posts</h2>
+            <div className="mb-4 text-gray-600">No MBFC bias data found. Showing real Reddit post data only.</div>
+            <ul className="divide-y divide-gray-200">
+              {result.redditPosts.map((post: RedditPost, idx: number) => (
+                <li key={idx} className="py-4">
+                  <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 font-medium hover:underline">
+                    {post.title}
+                  </a>
+                  <div className="text-sm text-gray-500">by {post.author} | Score: {post.score}</div>
+                  <div className="text-xs text-gray-400">{post.url}</div>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
