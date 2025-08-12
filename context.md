@@ -1,11 +1,15 @@
 # 🧠 Social Media Political Bias Analyzer
 
+
+**Update (August 2025):**
+**Backend is now pure JavaScript (no TypeScript) for maximum simplicity and speed. All backend code now lives in `/app/` (not `/src/` or `/dist/`). The MVP goal is to deliver subreddit left-right bias detection using MBFC data as quickly as possible. All TypeScript, type-checking, and related build steps have been removed from the backend.**
+
 This context document should act as a living brief, spec sheet, setup guide, and roadmap. Update this context document with any new changes and details reflected by new or modified files and folder structure so that it can be standardised and used team-wide.
 
 ## 📝 User Story
 
 As a politically curious user who cares about impartiality,  
-I want a lightweight but scalable and expandable domain driven designed web application built with **Next.js** and **TypeScript** that can estimate the political bias of social media applications and communities, such as Reddit subreddits, Instagram pages, and X profiles.
+I want a lightweight but scalable and expandable domain driven designed web application built with **Next.js** and that can estimate the political bias of social media applications and communities, such as Reddit subreddits, Instagram pages, and X profiles.
 
 I want to be able to enter a social media community's name/URL, which will be a subreddit as an MVP, and view an analysis of whether that it leans left or right on a scale from 0 (far-left) to 10 (far-right) as an initial 'Core Metric' (including later perhaps Credibility, Demographics, Authoritarian vs Libertarian, Economy, etc...). 
 
@@ -19,39 +23,26 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 
 ---
 
-## 🏗️ Domain-Driven Design Architecture
+## 🏗️ Domain-Driven Design Architecture (Updated for MVP)
 
-### Core Domain: Bias Analysis Engine
-- **BiasAnalyzer**: Main orchestrator that combines multiple signals
-- **Signal Interface**: Abstract base for all bias detection signals
-- **BiasScore**: Value object representing 0-10 bias scale with confidence
-- **AnalysisResult**: Aggregate result with breakdown by signal type
 
-### Signal Implementations
+### Core Domain: Bias Analysis Engine (MVP)
+- **BiasAnalyzer**: Simple orchestrator in JavaScript that combines signals
+- **Signal**: For MVP, only MBFCSignal is implemented (no interfaces or types)
+- **BiasScore**: Simple number (0-10) with optional label
+- **AnalysisResult**: Plain JS object with signal breakdown
+
+### Signal Implementations (MVP)
 1. **MBFCSignal**: Media source bias detection
-   - Extracts URLs from social media posts
-   - Queries MBFC database for source bias ratings
-   - Aggregates weighted bias scores
+   - Extracts URLs from subreddit posts
+   - Looks up MBFC bias ratings from JSON/DB
+   - Aggregates bias scores
 
-2. **RedditCommentSignal**: Community sentiment analysis
-   - Fetches comment chains from Reddit API
-   - Sends to AI models (DeepSeek → OpenAI → HuggingFace)
-   - Analyzes political sentiment and community tone
-
-3. **ImageSignal**: Visual content credibility (Future)
-   - Extracts images from posts
-   - Cross-references with fact-checking sources
-   - Community Notes, Snopes, Google search integration
-
-### Social Media Platform Adapters
-- **RedditAdapter**: MVP implementation
-- **InstagramAdapter**: Future implementation  
-- **XAdapter**: Future implementation
-- **PlatformInterface**: Abstract base for platform-specific logic
+*All other signals and adapters are deferred until after MVP.*
 
 ---
 
-## ✅ Acceptance Criteria
+## ✅ Acceptance Criteria (MVP Focus)
 
 | Category                    | Details |
 |----------------------------|---------|
@@ -60,8 +51,8 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 |                            | Displays: bias score (0–10), label (e.g., "center-left") |
 |                            | Shows: signal breakdown, source examples, AI summaries |
 |                            | Expandable UI for future metrics (Credibility, Demographics, etc.) |
-| **Backend**                | Domain-driven Node.js API with TypeScript |
-|                            | Signal-based architecture for extensibility |
+| **Backend**                | Node.js API in plain JavaScript (no TypeScript) |
+|                            | Simple, minimal code for fast MVP |
 | **Platform Integration**   | Reddit API (MVP), Instagram/X (future) |
 |                            | Fetch top 50 posts from the last 30 days |
 |                            | Extract: posts, comments, external links, images |
@@ -97,17 +88,13 @@ socialmediabias/
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
 │   ├── package.json           # React 19.1.0, Next.js 15.4.5
 │   └── tsconfig.json          # TypeScript configuration
-├── backend/                    # Express.js + TypeScript + Domain Design
-│   ├── src/
-│   │   ├── domain/            # Domain-driven design core
-│   │   │   ├── signals/       # Signal implementations
-│   │   │   ├── platforms/     # Platform adapters
-│   │   │   └── analysis/      # Bias analysis engine
-│   │   ├── infrastructure/    # External integrations
-│   │   └── index.ts           # Express server setup
+├── backend/                    # Express.js, plain JavaScript (no TypeScript, no TypeORM)
+│   ├── app/                   # All backend code (MVP, plain JS)
+│   │   ├── index.js           # Express server setup (entrypoint)
+│   │   ├── mbfc-signal.js     # MBFC bias detection logic (MySQL direct, no ORM)
+│   │   └── ...                # Any other JS modules for MVP
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
-│   ├── package.json           # Express 4.18.2, TypeScript
-│   └── tsconfig.json          # TypeScript configuration
+│   ├── package.json           # Express 4.18.2, plain JS, mysql2
 ├── database/
 │   └── init.sql               # MySQL initialization (empty - needs MBFC schema)
 ├── nginx/
@@ -144,15 +131,24 @@ DEEPSEEK_API_KEY=your_deepseek_key
 OPENAI_API_KEY=your_openai_key
 HUGGINGFACE_API_KEY=your_huggingface_key
 
+# MBFC API
+RAPIDAPI_KEY=your_rapidapi_key
+
 # MySQL
 MYSQL_ROOT_PASSWORD=rootpassword
 MYSQL_DATABASE=mbfc
 MYSQL_USER=mbfc_user
 MYSQL_PASSWORD=mbfc_pass
 
+# VPS Configuration (used for deployment/DB sync)
+VPS_USER=ubuntu
+VPS_HOST=51.68.197.173
+VPS_PROJECT_PATH=/home/ubuntu/socialmediabias
+
 # URLs for Makefile automation
 URL_LOCAL=http://localhost:9005
 URL_PRODUCTION=https://smb.rami-abdelal.co.uk
+
 ```
 
 ---
@@ -203,8 +199,13 @@ cp .env.example .env  # Create from template
 
 ### 3. Database Setup
 ```bash
-# The MBFC dataset is already included: mbfc-dataset-2025-08-05.json
-# Need to create init.sql to load this data into MySQL
+# Now using TypeORM (Active Record) for schema, migrations and seeding
+# Run services
+docker compose up -d
+
+# Run migrations and seed (inside backend container)
+docker exec backend npm run migration:run
+docker exec backend npm run seed
 ```
 
 ### 4. Development
@@ -230,40 +231,28 @@ sudo systemctl reload nginx
 
 ---
 
-## 🏗️ Domain Implementation Roadmap
 
-### Phase 1: Core Infrastructure (Current)
+## 🏗️ Domain Implementation Roadmap (August 2025)
+
+### Phase 1: Core MVP (Current)
 - [x] Project structure with Docker Compose
 - [x] Frontend: Next.js 15.4.5 + TypeScript + TailwindCSS v4
-- [x] Backend: Express.js + TypeScript setup
+- [x] Backend: Express.js in plain JavaScript (no TypeScript, no TypeORM), all code in `/app/`
 - [x] Multi-stage Docker builds for both services
 - [x] MySQL service with volume persistence
 - [x] Environment variable configuration
 - [x] MBFC dataset (3.1MB JSON file)
-
-### Phase 2: Domain Core (Next)
-- [ ] **Domain Models**: BiasScore, AnalysisResult, Signal interfaces
-- [ ] **MBFCSignal**: URL extraction and MBFC database integration
-- [ ] **Database Schema**: MySQL tables for MBFC data and analysis results
+- [x] TypeORM and all ORM code removed; backend uses direct MySQL queries via `mysql2`
+- [ ] **MBFCSignal**: URL extraction and MBFC database integration (MVP bias detection, in `/app/mbfc-signal.js`)
 - [ ] **Basic Frontend**: Social media input form and bias display
 
-### Phase 3: AI Integration
+### Phase 2: Post-MVP Expansion
 - [ ] **RedditCommentSignal**: Reddit API integration + DeepSeek analysis
 - [ ] **AI Pipeline**: DeepSeek → OpenAI → HuggingFace fallback
-- [ ] **Sentiment Analysis**: Political bias detection from comments
 - [ ] **Signal Aggregation**: Weighted combination of MBFC + Comment signals
-
-### Phase 4: Platform Expansion
-- [ ] **InstagramAdapter**: Instagram API integration
-- [ ] **XAdapter**: X/Twitter API integration
-- [ ] **ImageSignal**: Visual content credibility analysis
+- [ ] **Instagram/X/Image Signals**: Future platform and metric expansion
 - [ ] **Advanced Metrics**: Credibility, Demographics, Authoritarian/Libertarian
-
-### Phase 5: Production & Scale
-- [ ] **NGINX**: Reverse proxy configuration
-- [ ] **Makefile**: Automation scripts for deployment
-- [ ] **Documentation**: Complete README.md with setup instructions
-- [ ] **Performance**: Caching, rate limiting, monitoring
+- [ ] **NGINX/Makefile/Docs/Performance**: Production and scale improvements
 
 ---
 
@@ -287,7 +276,7 @@ The included `mbfc-dataset-2025-08-05.json` contains MBFC records structured lik
 ]
 ```
 
-This JSON needs to be parsed and loaded into a normalized MySQL table via `database/init.sql`.
+This JSON is parsed and loaded into MySQL via a TypeORM seeding script.
 
 ---
 
@@ -334,35 +323,35 @@ Create a `Makefile` with these targets:
 ```makefile
 # Database operations
 db-export:
-	docker exec mysql mysqldump -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) > backup.sql
+  docker exec mysql mysqldump -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) > backup.sql
 
 db-import:
-	docker exec -i mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < backup.sql
+  docker exec -i mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < backup.sql
 
 # Deployment
 deploy-local:
-	docker-compose up -d --build
+  docker-compose up -d --build
 
 deploy-production:
-	ssh user@server "cd /path/to/project && docker-compose up -d --build"
+  ssh user@server "cd /path/to/project && docker-compose up -d --build"
 
 # NGINX
 nginx-test:
-	sudo nginx -t
+  sudo nginx -t
 
 nginx-reload:
-	sudo systemctl reload nginx
+  sudo systemctl reload nginx
 
 # Development
 dev:
-	docker-compose up --build
+  docker-compose up --build
 
 logs:
-	docker-compose logs -f
+  docker-compose logs -f
 
 clean:
-	docker-compose down -v
-	docker system prune -f
+  docker-compose down -v
+  docker system prune -f
 ```
 
 ---
@@ -384,8 +373,8 @@ By combining:
 
 ## 🎯 Next Steps
 
-1. **Domain Core**: Implement BiasScore, AnalysisResult, and Signal interfaces
-2. **MBFCSignal**: Create URL extraction and MBFC database integration
-3. **Database Schema**: Design MySQL tables for MBFC data and analysis results
+1. **Domain Core**: Implement minimal bias scoring and result logic in plain JS (no interfaces/classes, no ORM)
+2. **MBFCSignal**: Ensure URL extraction and MBFC database integration works in `/app/mbfc-signal.js` (using `mysql2` direct queries)
+3. **Database Schema**: Ensure MySQL tables for MBFC data exist and are loaded (no ORM, just SQL)
 4. **Basic Frontend**: Create social media input form and bias display
-5. **RedditCommentSignal**: Implement Reddit API integration with DeepSeek analysis
+5. **RedditCommentSignal**: Implement Reddit API integration with DeepSeek analysis (future)

@@ -30,12 +30,15 @@ services:
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - TZ=UTC
     ports:
       - "${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}"
     depends_on:
       - mysql
     env_file:
       - .env
+    volumes:
+      - ./database:/app/database
 
   mysql:
     image: mysql:8.0
@@ -46,11 +49,11 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - TZ=UTC
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
 
 volumes:
   mysql_data:
