@@ -4,7 +4,7 @@
 **Update (August 2025):**
 **Backend is now pure JavaScript (no TypeScript) for maximum simplicity and speed. All backend code now lives in `/app/` (not `/src/` or `/dist/`). The MVP goal is to deliver subreddit left-right bias detection using MBFC data as quickly as possible. All TypeScript, type-checking, and related build steps have been removed from the backend.**
 
-This context document should act as a living brief, spec sheet, setup guide, and roadmap. Update this context document with any new changes and details reflected by new or modified files and folder structure so that it can be standardised and used team-wide.
+This context document is the central knowledge store for the project. It acts as a living brief, spec sheet, setup guide, and roadmap. Update this document with any new changes, details, or decisions reflected by new or modified files and folder structure so that it can be standardized and used team-wide.
 
 ## 📝 User Story
 
@@ -76,25 +76,104 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 
 ---
 
-## 📂 Current Project Structure
 
+## 📂 Current Project Structure
+## 🗂️ Reference: 20 Popular Subreddits and Post Types
+
+| Subreddit Name         | URL                                         | Dominant Post Types         | Topic/Notes                        |
+|-----------------------|----------------------------------------------|-----------------------------|-------------------------------------|
+| r/nottheonion         | https://www.reddit.com/r/nottheonion         | Link, News                  | Satirical real news                 |
+| r/worldnews           | https://www.reddit.com/r/worldnews           | Link, News                  | International news                  |
+| r/politics            | https://www.reddit.com/r/politics            | Link, News                  | US politics                         |
+| r/LateStageCapitalism | https://www.reddit.com/r/LateStageCapitalism | Image, Meme, Text           | Political, anti-capitalist memes    |
+| r/Conservative        | https://www.reddit.com/r/Conservative        | Link, Text, Discussion      | Conservative politics               |
+| r/PoliticalHumor      | https://www.reddit.com/r/PoliticalHumor      | Image, Meme, Text           | Political memes                     |
+| r/AskReddit           | https://www.reddit.com/r/AskReddit           | Text, Discussion            | General Q&A                         |
+| r/WhitePeopleTwitter  | https://www.reddit.com/r/WhitePeopleTwitter  | Image, Screenshot, Meme     | Social commentary                   |
+| r/Conspiracy          | https://www.reddit.com/r/conspiracy          | Image, Link, Text           | Conspiracy theories                 |
+| r/news                | https://www.reddit.com/r/news                | Link, News                  | General news                        |
+| r/ukpolitics          | https://www.reddit.com/r/ukpolitics          | Link, News, Discussion      | UK politics                         |
+| r/PoliticalCompassMemes| https://www.reddit.com/r/PoliticalCompassMemes| Image, Meme, Gallery      | Political memes                     |
+| r/TwoXChromosomes     | https://www.reddit.com/r/TwoXChromosomes     | Text, Link, Image           | Gender, social issues               |
+| r/BlackPeopleTwitter  | https://www.reddit.com/r/BlackPeopleTwitter  | Image, Screenshot, Meme     | Social commentary                   |
+| r/atheism             | https://www.reddit.com/r/atheism             | Text, Link, Meme            | Religion, discussion                |
+| r/ConservativeMemes   | https://www.reddit.com/r/ConservativeMemes   | Image, Meme                 | Conservative memes                  |
+| r/Libertarian         | https://www.reddit.com/r/Libertarian         | Link, Text, Discussion      | Libertarian politics                |
+| r/ChapoTrapHouse      | https://www.reddit.com/r/ChapoTrapHouse      | Text, Meme, Image           | Leftist politics (banned, archive)  |
+| r/centrist            | https://www.reddit.com/r/centrist            | Link, Text, Discussion      | Centrist politics                   |
+| r/PoliticalDiscussion | https://www.reddit.com/r/PoliticalDiscussion | Text, Link, Discussion      | Political debate                    |
+
+## 🧩 Reddit Post Type Function Plan
+For MVP, we will use the following post types (with only one Reddit Image Post type; meme detection is a later step):
+
+1. **Reddit Link Post**
+  - Analyze external URLs (news/articles) using MBFC database for bias.
+  - Function: `analyzeRedditLinkPost(post)`
+
+2. **Reddit Image Post**
+  - Analyze direct image posts (including galleries). Use OCR/Image-to-Text to extract text, then analyze for political sentiment. Meme detection is a future step.
+  - Function: `analyzeRedditImagePost(post)`
+
+3. **Reddit Text Post**
+  - Analyze self-posts using NLP/AI for sentiment and political leaning.
+  - Function: `analyzeRedditTextPost(post)`
+
+4. **Reddit Discussion/Comment Thread**
+  - Aggregate sentiment and political keywords from top comments. Use AI to summarize thread’s political leaning.
+  - Function: `analyzeRedditDiscussion(post, comments)`
+
+5. **Reddit Video Post**
+  - Extract captions/transcripts, analyze for sentiment and political leaning.
+  - Function: `analyzeRedditVideoPost(post)`
+
+6. **Reddit Poll Post**
+  - Analyze poll question/options for political content.
+  - Function: `analyzeRedditPollPost(post)`
+
+7. **Reddit Crosspost**
+  - Analyze original post by type.
+  - Function: `analyzeRedditCrosspost(post)`
+
+8. **Reddit Mixed/Other**
+  - Run all relevant analyzers and aggregate.
+  - Function: `analyzeRedditMixedPost(post)`
+
+## 🏁 Next Steps
+
+- Implement a post type classifier: `getRedditPostType(post)`
+- For each post, call the appropriate analysis function above.
+- For MVP, focus on: Link, Image, Text, Discussion.
+- Expand to Video, Poll, Crosspost, Mixed as needed.
+
+
+### 📁 Project Folder Structure (as of August 2025)
 ```
 socialmediabias/
 ├── frontend/                    # Next.js 15.4.5 + TypeScript
 │   ├── src/app/                # App Router structure
-│   │   ├── page.tsx           # Main landing page (needs implementation)
+│   │   ├── page.tsx           # Main landing page (UI, analysis input/results)
 │   │   ├── layout.tsx         # Root layout
 │   │   └── globals.css        # TailwindCSS v4 styles
+│   ├── public/                # Static assets (SVGs, favicon, etc.)
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
 │   ├── package.json           # React 19.1.0, Next.js 15.4.5
-│   └── tsconfig.json          # TypeScript configuration
+│   ├── tsconfig.json          # TypeScript configuration
+│   └── ...                    # Build, config, and cache files
 ├── backend/                    # Express.js, plain JavaScript (no TypeScript, no TypeORM)
 │   ├── app/                   # All backend code (MVP, plain JS)
 │   │   ├── index.js           # Express server setup (entrypoint)
-│   │   ├── mbfc-signal.js     # MBFC bias detection logic (MySQL direct, no ORM)
-│   │   └── ...                # Any other JS modules for MVP
+│   │   ├── mbfc-signal.js     # (Legacy) MBFC bias detection logic (MySQL direct, no ORM)
+│   │   └── signal/            # Signal modules for each post type
+│   │       ├── mbfc.js            # MBFC bias lookup (used by reddit-link.js)
+│   │       ├── reddit-link.js     # Reddit Link Post signal (uses mbfc.js)
+│   │       ├── image.js           # Image analysis (OCR, NLP placeholder)
+│   │       ├── reddit-image.js    # Reddit Image Post signal (uses image.js)
+│   │       ├── reddit-text.js     # Reddit Text Post signal (NLP/AI placeholder)
+│   │       ├── reddit-discussion.js # Reddit Discussion/Comment Thread signal (NLP/AI placeholder)
+│   │       └── ...                # Future signals (video, poll, etc.)
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
 │   ├── package.json           # Express 4.18.2, plain JS, mysql2
+│   └── ...                    # Other backend files
 ├── database/
 │   └── init.sql               # MySQL initialization (empty - needs MBFC schema)
 ├── nginx/

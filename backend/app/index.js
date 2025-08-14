@@ -23,6 +23,7 @@ app.get('/', (_, res) => res.json({
 
 // POST /api/analyze { redditUrl: string }
 app.post('/api/analyze', async (req, res) => {
+  console.info("Received analyze request");
   const { redditUrl } = req.body;
   if (!redditUrl || !/^https:\/\/www\.reddit\.com\//.test(redditUrl)) {
     return res.status(400).json({ error: 'Valid redditUrl required' });
@@ -37,12 +38,17 @@ app.post('/api/analyze', async (req, res) => {
     if (!apiRes.ok) throw new Error('Failed to fetch subreddit');
     const apiJson = await apiRes.json();
     const posts = (apiJson.data && apiJson.data.children) ? apiJson.data.children : [];
+
     // Extract all URLs from posts
     const urls = posts.map(p => p.data && p.data.url).filter(u => u && /^https?:\/\//.test(u));
+    
     // Check MBFC bias for each URL (mock if DB not loaded)
     let biasResults = [];
     let biasCount = {};
     let mbfcFound = false;
+    let response = {};
+
+    console.info("Checking MBFC bias for URLs:", urls);
     try {
       const dbConfig = {
         host: process.env.MYSQL_HOST || 'localhost',
@@ -51,6 +57,9 @@ app.post('/api/analyze', async (req, res) => {
         database: process.env.MYSQL_DATABASE || 'mbfc',
       };
       biasResults = await getMBFCBiasForUrls(urls, dbConfig);
+
+      console.log("Bias Results:", biasResults);
+
       for (const r of biasResults) {
         if (r.bias) biasCount[r.bias] = (biasCount[r.bias] || 0) + 1;
       }
@@ -61,7 +70,7 @@ app.post('/api/analyze', async (req, res) => {
 
     if (mbfcFound) {
       // Return MBFC bias results as before
-      res.json({
+      response = {
         subreddit,
         totalPosts: posts.length,
         urlsChecked: urls.length,
@@ -79,10 +88,12 @@ app.post('/api/analyze', async (req, res) => {
         communityName: subreddit,
         platform: 'reddit',
         analysisDate: new Date().toISOString()
-      });
+      }
+      res.json(response);
+      console.info("MBFC bias results found:", response);
     } else {
       // No MBFC data: return real Reddit post data for demo
-      res.json({
+      response = {
         subreddit,
         totalPosts: posts.length,
         urlsChecked: urls.length,
@@ -94,7 +105,9 @@ app.post('/api/analyze', async (req, res) => {
           score: p.data && p.data.score
         })),
         message: 'No MBFC data found. Showing real Reddit post data only.'
-      });
+      };
+      res.json(response);
+      console.info("No MBFC bias data found, returning Reddit posts:", response);
     }
   } catch (e) {
     res.status(500).json({ error: e.message || 'Unknown error' });
@@ -102,5 +115,5 @@ app.post('/api/analyze', async (req, res) => {
 });
 
 app.listen(port, '0.0.0.0', () => {
-  console.info(`Backend listening on port ${port}`);
+  console.info(`Backend listening on ports ${port}`);
 });
