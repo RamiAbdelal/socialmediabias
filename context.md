@@ -2,6 +2,9 @@
 
 
 **Update (August 2025):**
+
+**Frontend state and logic now live at the very top of the app in `frontend/src/app/page.tsx`. All other pages and components (including `/reddit/r/[subreddit]`) are presentational only and receive their data via props or navigation.**
+
 **Backend is now pure JavaScript (no TypeScript) for maximum simplicity and speed. All backend code now lives in `/app/` (not `/src/` or `/dist/`). The MVP goal is to deliver subreddit left-right bias detection using MBFC data as quickly as possible. All TypeScript, type-checking, and related build steps have been removed from the backend.**
 
 This context document is the central knowledge store for the project. It acts as a living brief, spec sheet, setup guide, and roadmap. Update this document with any new changes, details, or decisions reflected by new or modified files and folder structure so that it can be standardized and used team-wide.
@@ -26,7 +29,12 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 ## 🏗️ Domain-Driven Design Architecture (Updated for MVP)
 
 
+
 ### Core Domain: Bias Analysis Engine (MVP)
+- **Frontend State Management:**
+  - All application state and logic (input, fetching, error/result state, subreddit navigation) is managed at the root in `frontend/src/app/page.tsx`.
+  - All other pages/components (e.g., `/reddit/r/[subreddit]`) are stateless/presentational and receive their data via props or navigation.
+  - This ensures a single source of truth and enables seamless navigation and SSR/CSR compatibility.
 - **BiasAnalyzer**: Simple orchestrator in JavaScript that combines signals
 - **Signal**: For MVP, only MBFCSignal is implemented (no interfaces or types)
 - **BiasScore**: Simple number (0-10) with optional label
@@ -99,7 +107,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 | r/atheism             | https://www.reddit.com/r/atheism             | Text, Link, Meme            | Religion, discussion                |
 | r/ConservativeMemes   | https://www.reddit.com/r/ConservativeMemes   | Image, Meme                 | Conservative memes                  |
 | r/Libertarian         | https://www.reddit.com/r/Libertarian         | Link, Text, Discussion      | Libertarian politics                |
-| r/ChapoTrapHouse      | https://www.reddit.com/r/ChapoTrapHouse      | Text, Meme, Image           | Leftist politics (banned, archive)  |
+| r/Britain             | https://www.reddit.com/r/Britain             | Text, Meme, Image           | Leftist British politics            |
 | r/centrist            | https://www.reddit.com/r/centrist            | Link, Text, Discussion      | Centrist politics                   |
 | r/PoliticalDiscussion | https://www.reddit.com/r/PoliticalDiscussion | Text, Link, Discussion      | Political debate                    |
 
@@ -151,8 +159,9 @@ For MVP, we will use the following post types (with only one Reddit Image Post t
 socialmediabias/
 ├── frontend/                    # Next.js 15.4.5 + TypeScript
 │   ├── src/app/                # App Router structure
-│   │   ├── page.tsx           # Main landing page (UI, analysis input/results)
+│   │   ├── page.tsx           # Main landing page (UI, analysis input/results, ALL state/logic lives here)
 │   │   ├── layout.tsx         # Root layout
+│   │   ├── reddit/            # Subreddit results pages (presentational only)
 │   │   └── globals.css        # TailwindCSS v4 styles
 │   ├── public/                # Static assets (SVGs, favicon, etc.)
 │   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
