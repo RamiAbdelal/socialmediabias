@@ -25,7 +25,7 @@ app.get('/', (_, res) => res.json({
 app.post('/api/analyze', async (req, res) => {
   console.info("Received analyze request");
   const { redditUrl } = req.body;
-  if (!redditUrl || !/^https:\/\/www\.reddit\.com\//.test(redditUrl)) {
+  if (!redditUrl || !/^https:\/\/(?:www\.)?reddit\.com\//.test(redditUrl)) {
     return res.status(400).json({ error: 'Valid redditUrl required' });
   }
   try {

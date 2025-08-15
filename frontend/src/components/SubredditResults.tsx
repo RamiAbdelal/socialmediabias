@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 interface BiasScore {
   score: number;
@@ -147,11 +148,15 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
                   <div className="text-xs text-yellow-400 break-all mb-2">{url}</div>
                   {isImage && (
                     <div className="my-2">
-                      <img
+                      <Image
                         src={url}
                         alt={post.title}
+                        width={600}
+                        height={400}
                         className="rounded-lg max-h-80 w-auto border border-yellow-400/10 shadow-md mx-auto"
+                        style={{ objectFit: 'contain', height: 'auto', maxHeight: '20rem' }}
                         loading="lazy"
+                        unoptimized
                       />
                     </div>
                   )}
