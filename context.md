@@ -157,42 +157,46 @@ For MVP, we will use the following post types (with only one Reddit Image Post t
 ### 📁 Project Folder Structure (as of August 2025)
 ```
 socialmediabias/
-├── frontend/                    # Next.js 15.4.5 + TypeScript
-│   ├── src/app/                # App Router structure
-│   │   ├── page.tsx           # Main landing page (UI, analysis input/results, ALL state/logic lives here)
-│   │   ├── layout.tsx         # Root layout
-│   │   ├── reddit/            # Subreddit results pages (presentational only)
-│   │   └── globals.css        # TailwindCSS v4 styles
-│   ├── public/                # Static assets (SVGs, favicon, etc.)
-│   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
-│   ├── package.json           # React 19.1.0, Next.js 15.4.5
-│   ├── tsconfig.json          # TypeScript configuration
-│   └── ...                    # Build, config, and cache files
-├── backend/                    # Express.js, plain JavaScript (no TypeScript, no TypeORM)
-│   ├── app/                   # All backend code (MVP, plain JS)
-│   │   ├── index.js           # Express server setup (entrypoint)
-│   │   ├── mbfc-signal.js     # (Legacy) MBFC bias detection logic (MySQL direct, no ORM)
-│   │   └── signal/            # Signal modules for each post type
-│   │       ├── mbfc.js            # MBFC bias lookup (used by reddit-link.js)
-│   │       ├── reddit-link.js     # Reddit Link Post signal (uses mbfc.js)
-│   │       ├── image.js           # Image analysis (OCR, NLP placeholder)
-│   │       ├── reddit-image.js    # Reddit Image Post signal (uses image.js)
-│   │       ├── reddit-text.js     # Reddit Text Post signal (NLP/AI placeholder)
-│   │       ├── reddit-discussion.js # Reddit Discussion/Comment Thread signal (NLP/AI placeholder)
-│   │       └── ...                # Future signals (video, poll, etc.)
-│   ├── Dockerfile             # Multi-stage build (Node 22 Alpine)
-│   ├── package.json           # Express 4.18.2, plain JS, mysql2
-│   └── ...                    # Other backend files
+├── frontend/                          # Next.js 15.4.5 + TypeScript
+│   ├── src/app/                       # App Router structure
+│   │   ├── page.tsx                   # Main landing page (UI, analysis input/results, ALL state/logic lives here)
+│   │   ├── layout.tsx                 # Root layout
+│   │   ├── reddit/r/[subreddit]       # Subreddit results pages 
+│   │   │   ├── page.tsx               # The default page
+│   │   │   └── SubredditResults.tsx   # SubredditResults component
+│   │   └── globals.css                # TailwindCSS v4 styles
+│   ├── src/components/                # Reusable components that should be visible across the app
+│   │   ├── Header.tsx                 # The title and logo component
+│   │   └── Menu.tsx                   # The primary input area with quick links to popular subreddits
+│   ├── public/                        # Static assets (SVGs, favicon, etc.)
+│   ├── Dockerfile                     # Multi-stage build (Node 22 Alpine)
+│   ├── package.json                   # React 19.1.0, Next.js 15.4.5
+│   ├── tsconfig.json                  # TypeScript configuration
+│   └── ...                            # Build, config, and cache files
+├── backend/                           # Express.js, plain JavaScript (no TypeScript, no TypeORM)
+│   ├── app/                           # All backend code (MVP, plain JS)
+│   │   ├── index.js                   # Express server setup (entrypoint)
+│   │   └── signal/                    # Signal modules for each post type
+│   │       ├── mbfc.js                # MBFC bias lookup (used by reddit-link.js)
+│   │       ├── reddit-link.js         # Reddit Link Post signal (uses mbfc.js)
+│   │       ├── image.js               # Image analysis (OCR, NLP placeholder)
+│   │       ├── reddit-image.js        # Reddit Image Post signal (uses image.js)
+│   │       ├── reddit-text.js         # Reddit Text Post signal (NLP/AI placeholder)
+│   │       ├── reddit-discussion.js   # Reddit Discussion/Comment Thread signal (NLP/AI placeholder)
+│   │       └── ...                    # Future signals (video, poll, etc.)
+│   ├── Dockerfile                     # Multi-stage build (Node 22 Alpine)
+│   ├── package.json                   # Express 4.18.2, plain JS, mysql2
+│   └── ...                            # Other backend files
 ├── database/
-│   └── init.sql               # MySQL initialization (empty - needs MBFC schema)
+│   └── init.sql                       # MySQL initialization (empty - needs MBFC schema)
 ├── nginx/
-│   └── nginx.conf             # NGINX configuration (empty - needs setup)
-├── docker-compose.yml         # 3 services: frontend, backend, mysql
-├── mbfc-dataset-2025-08-05.json  # MBFC dataset (3.1MB)
-├── .gitignore                 # Root gitignore
-├── README.md                  # Project documentation (empty)
-├── Makefile                   # Automation scripts (empty)
-└── prompt.md                  # This specification document
+│   └── nginx.conf                     # NGINX configuration (empty - needs setup)
+├── docker-compose.yml                 # 3 services: frontend, backend, mysql
+├── mbfc-dataset-2025-08-05.json       # MBFC dataset (3.1MB)
+├── .gitignore                         # Root gitignore
+├── README.md                          # Project documentation (empty)
+├── Makefile                           # Automation scripts (empty)
+└── prompt.md                          # This specification document
 ```
 
 ---
