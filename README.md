@@ -65,28 +65,75 @@ Production builds run the frontend on port 9005 (http://localhost:9005) and the 
    - Extracts images from posts
    - Cross-references with fact-checking sources
 
+socialmediabias/
 ## 📁 Project Structure
 
 ```
 socialmediabias/
-├── frontend/                    # Next.js 15.4.5 + TypeScript
-│   ├── src/app/                # App Router structure
-│   ├── Dockerfile              # Multi-stage build
-│   └── package.json            # React 19.1.0, Next.js 15.4.5
-├── backend/                    # Express.js + TypeScript + Domain Design
+├── frontend/
+│   ├── .gitignore
+│   ├── Dockerfile
+│   ├── eslint.config.mjs
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json.backup
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── README.md
+│   ├── tsconfig.json
+│   ├── .next/
+│   ├── public/
+│   │   ├── file.svg
+│   │   ├── globe.svg
+│   │   ├── next.svg
+│   │   ├── vercel.svg
+│   │   └── window.svg
 │   ├── src/
-│   │   ├── domain/            # Domain-driven design core
-│   │   │   ├── signals/       # Signal implementations
-│   │   │   └── analysis/      # Bias analysis engine
-│   │   ├── infrastructure/    # External integrations
-│   │   └── index.ts           # Express server setup
-│   ├── Dockerfile             # Multi-stage build
-│   └── package.json           # Express 4.18.2, TypeScript
+│   │   ├── app/
+│   │   │   ├── favicon.ico
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   ├── not-found.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── reddit/
+│   │   │       └── r/
+│   │   │           └── [subreddit]/
+│   │   │               └── page.tsx
+│   │   ├── components/
+│   │   │   ├── Header.tsx
+│   │   │   ├── Menu.tsx
+│   │   │   └── SubredditResults.tsx
+│   │   ├── context/
+│   │   │   └── AnalysisContext.tsx
+│   │   └── lib/
+│   │       └── popularSubreddits.js
+│   └── ... # Build, config, and cache files
+├── backend/
+│   ├── Dockerfile
+│   ├── index.js
+│   ├── package.json
+│   └── app/
+│       ├── index.js
+│       ├── mbfc-signal.js
+│       └── signal/
+│           ├── image.js
+│           ├── mbfc.js
+│           ├── reddit-discussion.js
+│           ├── reddit-image.js
+│           ├── reddit-link.js
+│           ├── reddit-text.js
+│           └── ...
 ├── database/
-│   └── init.sql               # MySQL initialization
-├── docker-compose.yml         # 3 services: frontend, backend, mysql
-├── mbfc-dataset-2025-08-05.json  # MBFC dataset (3.1MB)
-└── Makefile                   # Automation scripts
+│   ├── init.sql
+│   └── mbfc-current.json
+├── nginx/
+│   └── nginx.conf
+├── docker-compose.yml
+├── mbfc-dataset-2025-08-05.json
+├── .gitignore
+├── README.md
+├── Makefile
+└── prompt.md
 ```
 
 ## 🔧 Development

@@ -156,49 +156,74 @@ For MVP, we will use the following post types (with only one Reddit Image Post t
 - Expand to Video, Poll, Crosspost, Mixed as needed.
 
 
+socialmediabias/
 ### 📁 Project Folder Structure (as of August 2025)
 ```
 socialmediabias/
-├── frontend/                          # Next.js 15.4.5 + TypeScript
-│   ├── src/app/                       # App Router structure
-│   │   ├── page.tsx                   # Main landing page (UI, analysis input/results, ALL state/logic lives here)
-│   │   ├── layout.tsx                 # Root layout
-│   │   ├── reddit/r/[subreddit]       # Subreddit results pages 
-│   │   │   ├── page.tsx               # The default page
-│   │   │   └── SubredditResults.tsx   # SubredditResults component
-│   │   └── globals.css                # TailwindCSS v4 styles
-│   ├── src/components/                # Reusable components that should be visible across the app
-│   │   ├── Header.tsx                 # The title and logo component
-│   │   └── Menu.tsx                   # The primary input area with quick links to popular subreddits
-│   ├── public/                        # Static assets (SVGs, favicon, etc.)
-│   ├── Dockerfile                     # Multi-stage build (Node 22 Alpine)
-│   ├── package.json                   # React 19.1.0, Next.js 15.4.5
-│   ├── tsconfig.json                  # TypeScript configuration
-│   └── ...                            # Build, config, and cache files
-├── backend/                           # Express.js, plain JavaScript (no TypeScript, no TypeORM)
-│   ├── app/                           # All backend code (MVP, plain JS)
-│   │   ├── index.js                   # Express server setup (entrypoint)
-│   │   └── signal/                    # Signal modules for each post type
-│   │       ├── mbfc.js                # MBFC bias lookup (used by reddit-link.js)
-│   │       ├── reddit-link.js         # Reddit Link Post signal (uses mbfc.js)
-│   │       ├── image.js               # Image analysis (OCR, NLP placeholder)
-│   │       ├── reddit-image.js        # Reddit Image Post signal (uses image.js)
-│   │       ├── reddit-text.js         # Reddit Text Post signal (NLP/AI placeholder)
-│   │       ├── reddit-discussion.js   # Reddit Discussion/Comment Thread signal (NLP/AI placeholder)
-│   │       └── ...                    # Future signals (video, poll, etc.)
-│   ├── Dockerfile                     # Multi-stage build (Node 22 Alpine)
-│   ├── package.json                   # Express 4.18.2, plain JS, mysql2
-│   └── ...                            # Other backend files
+├── frontend/
+│   ├── .gitignore
+│   ├── Dockerfile
+│   ├── eslint.config.mjs
+│   ├── next-env.d.ts
+│   ├── next.config.ts
+│   ├── package-lock.json.backup
+│   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── README.md
+│   ├── tsconfig.json
+│   ├── .next/
+│   ├── public/
+│   │   ├── file.svg
+│   │   ├── globe.svg
+│   │   ├── next.svg
+│   │   ├── vercel.svg
+│   │   └── window.svg
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── favicon.ico
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   ├── not-found.tsx
+│   │   │   ├── page.tsx
+│   │   │   └── reddit/
+│   │   │       └── r/
+│   │   │           └── [subreddit]/
+│   │   │               └── page.tsx
+│   │   ├── components/
+│   │   │   ├── Header.tsx
+│   │   │   ├── Menu.tsx
+│   │   │   └── SubredditResults.tsx
+│   │   ├── context/
+│   │   │   └── AnalysisContext.tsx
+│   │   └── lib/
+│   │       └── popularSubreddits.js
+│   └── ... # Build, config, and cache files
+├── backend/
+│   ├── Dockerfile
+│   ├── index.js
+│   ├── package.json
+│   └── app/
+│       ├── index.js
+│       ├── mbfc-signal.js
+│       └── signal/
+│           ├── image.js
+│           ├── mbfc.js
+│           ├── reddit-discussion.js
+│           ├── reddit-image.js
+│           ├── reddit-link.js
+│           ├── reddit-text.js
+│           └── ...
 ├── database/
-│   └── init.sql                       # MySQL initialization (empty - needs MBFC schema)
+│   ├── init.sql
+│   └── mbfc-current.json
 ├── nginx/
-│   └── nginx.conf                     # NGINX configuration (empty - needs setup)
-├── docker-compose.yml                 # 3 services: frontend, backend, mysql
-├── mbfc-dataset-2025-08-05.json       # MBFC dataset (3.1MB)
-├── .gitignore                         # Root gitignore
-├── README.md                          # Project documentation (empty)
-├── Makefile                           # Automation scripts (empty)
-└── prompt.md                          # This specification document
+│   └── nginx.conf
+├── docker-compose.yml
+├── mbfc-dataset-2025-08-05.json
+├── .gitignore
+├── README.md
+├── Makefile
+└── prompt.md
 ```
 
 ---
