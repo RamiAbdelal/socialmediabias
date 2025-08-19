@@ -50,6 +50,10 @@ app.post('/api/analyze', async (req, res) => {
     const apiJson = await apiRes.json();
     const posts = (apiJson.data && apiJson.data.children) ? apiJson.data.children : [];
 
+    console.info(`Fetched ${posts.length} posts from subreddit: ${subreddit}`);
+
+    console.info("API JSON:", apiJson); 
+
     // Extract all URLs from posts
     const urls = posts.map(p => p.data && p.data.url).filter(u => u && /^https?:\/\//.test(u));
     

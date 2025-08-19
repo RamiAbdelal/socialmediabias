@@ -1,7 +1,26 @@
 import React, { useState, useMemo } from 'react';
 
 
-import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps } from '../lib/types';
+import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
+// Default RedditSignal object for clean merging
+const defaultRedditSignal: RedditSignal = {
+  url: '',
+  bias: undefined,
+  country: undefined,
+  credibility: undefined,
+  factual_reporting: undefined,
+  id: undefined,
+  mbfc_url: undefined,
+  media_type: undefined,
+  source_id: undefined,
+  source_name: undefined,
+  source_url: undefined,
+  created_at: undefined,
+  title: undefined,
+  permalink: undefined,
+  author: undefined,
+  score: undefined,
+};
 import  RedditPostsSection from './RedditPostsSection';
 import { isImageUrl, isGalleryUrl } from '../lib/utils';
 import Image from 'next/image';
@@ -29,7 +48,33 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string|null>(null);
 
   // --- FILTER LOGIC ---
-  const allDetails = result?.details || [];
+  // Combine MBFCDetail[] and RedditPost[] on the 'url' attribute, deduplicated, using defaultRedditSignal for clean merging
+  const allDetails: RedditSignal[] = React.useMemo(() => {
+    const details = result?.details || [];
+    const redditPosts = result?.redditPosts || [];
+    // Map MBFC details by URL for quick lookup
+    const mbfcByUrl = new Map<string, MBFCDetail>();
+    for (const d of details) {
+      if (d.url) mbfcByUrl.set(d.url, d);
+    }
+    const combined: RedditSignal[] = [];
+    // Always include all reddit posts, merging with MBFCDetail if present
+    for (const p of redditPosts) {
+      if (p.url) {
+        const mbfc = mbfcByUrl.get(p.url);
+        combined.push({ ...defaultRedditSignal, ...mbfc, ...p });
+        mbfcByUrl.delete(p.url); // Remove so we don't duplicate below
+      }
+    }
+    // Add remaining MBFC details that didn't match a reddit post
+    for (const d of mbfcByUrl.values()) {
+      combined.push({ ...defaultRedditSignal, ...d });
+    }
+    return combined;
+  }, [result]);
+
+  console.log("allDetails", allDetails);  
+
   const filteredDetails = useMemo(() => {
     return allDetails.filter((d) => {
       if (biasFilter && d.bias !== biasFilter) return false;
@@ -40,6 +85,8 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
       return true;
     });
   }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter]);
+
+  console.log("filteredDetails", filteredDetails);  
 
   // --- FILTER OPTIONS (never undefined) ---
   const biasOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.bias).filter((v): v is string => typeof v === 'string'))), [allDetails]);
@@ -176,12 +223,14 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
             <div className="mb-6">
               <h3 className="text-lg font-medium mb-4 text-yellow-200">MBFC Results</h3>
               <div className="grid grid-cols-1 gap-4">
-                {filteredDetails.map((d: MBFCDetail, i: number) => (
+                {filteredDetails.map((d: RedditSignal, i: number) => (
                   
                   <div key={i} className="bg-emerald-950/80 border border-yellow-400/20 rounded-xl p-4 flex flex-col shadow-md">
+
                     <div className="flex items-center mb-2">
+                      
                       {/* Bias Icon */}
-                      <span className="mr-2">
+                      {d.bias && <span className="mr-2">
                         {d.bias === 'Left' && <span title="Left" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-800 rounded-full" />}
                         {d.bias === 'Left-Center' && <span title="Left-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-300 to-blue-600 rounded-full" />}
                         {d.bias === 'Least Biased' && <span title="Least Biased" className="inline-block w-5 h-5 bg-gradient-to-br from-green-400 to-green-700 rounded-full" />}
@@ -189,11 +238,10 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
                         {d.bias === 'Right' && <span title="Right" className="inline-block w-5 h-5 bg-gradient-to-br from-red-400 to-red-700 rounded-full" />}
                         {d.bias === 'Questionable' && <span title="Questionable" className="inline-block w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-700 rounded-full" />}
                         {!d.bias && <span className="inline-block w-5 h-5 bg-gray-400 rounded-full" />}
-                      </span>
+                      </span>}
 
-                      {/* Bias Label */}
-                      <span className="font-bold text-yellow-100 text-lg mr-2">{d.bias || <span className="italic text-yellow-400">N/A</span>}</span>
-
+                      {/* Bias Label or Reddit Title */}
+                      <span className="font-bold text-yellow-100 text-lg mr-2">{d.bias || d.title }</span>
 
                       {d.credibility && (
                         <span className="ml-2 px-2 py-0.5 rounded bg-yellow-800/60 text-yellow-200 text-xs font-semibold" title="Credibility">
@@ -206,6 +254,17 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
                         </span>
                       )}
                     </div>
+
+                    {/* Reddit author and score (same block/line) */}
+                    <div className='flex items-center mb-2'>
+                      {(d.author || typeof d.score === 'number') && (
+                        <span className="text-yellow-300 text-sm">
+                          {d.author && <>by {d.author}</>}
+                          {d.author && typeof d.score === 'number' && ' | '}
+                          {typeof d.score === 'number' && <>Score: {d.score}</>}
+                        </span>
+                      )}
+                    </div>  
 
                     <div className="mb-2">
                       {isImageUrl(d.url) && (

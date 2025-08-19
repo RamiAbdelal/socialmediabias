@@ -34,6 +34,27 @@ export interface MBFCDetail {
   created_at?: string;
 }
 
+export type RedditSignal = {
+  url: string;
+  // MBFCDetail fields
+  bias?: string;
+  country?: string;
+  credibility?: string;
+  factual_reporting?: string;
+  id?: number;
+  mbfc_url?: string;
+  media_type?: string;
+  source_id?: number;
+  source_name?: string;
+  source_url?: string;
+  created_at?: string;
+  // RedditPost fields
+  title?: string;
+  permalink?: string;
+  author?: string;
+  score?: number;
+}
+
 export interface AnalysisResult {
   communityName?: string;
   platform?: string;
