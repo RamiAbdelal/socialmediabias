@@ -65,7 +65,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ redditUrl: url }),
       });
       if (!res.ok) throw new Error((await res.json()).error || "Analysis failed");
-      setResult(await res.json());
+      const logged = await res.json();
+      setResult(logged);
+      console.log(logged); // Log the result for debugging
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('Analysis failed');

@@ -1,42 +1,10 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
+
+
+import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps } from '../lib/types';
+import  RedditPostsSection from './RedditPostsSection';
+import { isImageUrl, isGalleryUrl } from '../lib/utils';
 import Image from 'next/image';
-
-interface BiasScore {
-  score: number;
-  confidence: number;
-  label: string;
-}
-
-interface SignalResult {
-  signalType: string;
-  score: BiasScore;
-  summary: string;
-  examples: string[];
-}
-
-interface RedditPost {
-  title: string;
-  url: string;
-  permalink: string;
-  author: string;
-  score: number;
-}
-
-interface AnalysisResult {
-  communityName?: string;
-  platform?: string;
-  overallScore?: BiasScore;
-  signalResults?: SignalResult[];
-  analysisDate?: string;
-  redditPosts?: RedditPost[];
-  message?: string;
-}
-
-interface SubredditResultsProps {
-  result: AnalysisResult | null;
-  error: string | null;
-  isLoading: boolean;
-}
 
 const getBiasColor = (score: number) => {
   if (score <= 2) return 'text-red-600';
@@ -52,18 +20,51 @@ const getConfidenceColor = (confidence: number) => {
   return 'text-red-600';
 };
 
-const isImageUrl = (url: string) => {
-  return /\.(jpe?g|png|gif|bmp|webp|avif)$/i.test(url) || url.includes('i.redd.it/');
-};
-
-const isGalleryUrl = (url: string) => {
-  return url.includes('reddit.com/gallery/');
-};
-
 const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLoading }) => {
+  // --- FILTER STATE ---
+  const [biasFilter, setBiasFilter] = useState<string|null>(null);
+  const [credFilter, setCredFilter] = useState<string|null>(null);
+  const [factFilter, setFactFilter] = useState<string|null>(null);
+  const [countryFilter, setCountryFilter] = useState<string|null>(null);
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<string|null>(null);
+
+  // --- FILTER LOGIC ---
+  const allDetails = result?.details || [];
+  const filteredDetails = useMemo(() => {
+    return allDetails.filter((d) => {
+      if (biasFilter && d.bias !== biasFilter) return false;
+      if (credFilter && d.credibility !== credFilter) return false;
+      if (factFilter && d.factual_reporting !== factFilter) return false;
+      if (countryFilter && d.country !== countryFilter) return false;
+      if (mediaTypeFilter && d.media_type !== mediaTypeFilter) return false;
+      return true;
+    });
+  }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter]);
+
+  // --- FILTER OPTIONS (never undefined) ---
+  const biasOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.bias).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const credOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.credibility).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const factOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.factual_reporting).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const countryOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.country).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const mediaTypeOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.media_type).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+
+  // --- FILTER BUTTON COMPONENT ---
+  const FilterButton = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
+    <button
+      className={`px-3 py-1 rounded-full border font-semibold text-xs transition-all shadow-sm mr-2 mb-2
+        ${active ? 'bg-yellow-400 text-emerald-900 border-yellow-400' : 'bg-emerald-950/80 text-yellow-200 border-yellow-400/30 hover:bg-yellow-700/30 hover:text-yellow-100'}`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
+  );
+
+  // --- CLEAR FILTERS BUTTON ---
+  const anyFilter = biasFilter || credFilter || factFilter || countryFilter || mediaTypeFilter;
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="mb-8" />
+    <div className="mb-8">
       {error && (
         <div className="bg-gradient-to-r from-red-700 via-yellow-700 to-yellow-500 border border-yellow-400/40 rounded-lg p-4 mb-8 text-yellow-100 shadow-lg">
           <div className="flex">
@@ -83,7 +84,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
         <div className="text-yellow-200 text-lg mb-8">Analyzing subreddit...</div>
       )}
       {result && result.overallScore && (
-        <div className="bg-gradient-to-br from-green-900/80 via-emerald-900/80 to-yellow-700/80 shadow-lg rounded-2xl p-6 border border-yellow-400/30">
+        <div className="bg-gradient-to-br from-green-900/80 via-emerald-900/80 to-yellow-700/80 shadow-lg rounded-2xl p-6 border border-yellow-400/30 mb-8">
           <h2 className="text-2xl font-semibold mb-6 bg-gradient-to-r from-green-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent">Analysis Results</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <div className="bg-emerald-950/80 rounded-lg p-4 border border-yellow-400/20">
@@ -101,22 +102,152 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
               <div className="text-yellow-300">Analysis confidence</div>
             </div>
           </div>
-          {result.signalResults && (
+          {/* Bias Breakdown & Filters */}
+          {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
             <div className="mb-6">
-              <h3 className="text-lg font-medium mb-4 text-yellow-200">Signal Breakdown</h3>
-              <div className="space-y-4">
-                {result.signalResults.map((signal, index) => (
-                  <div key={index} className="border border-yellow-400/20 rounded-lg p-4 bg-emerald-950/60">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="font-medium text-yellow-100">{signal.signalType}</h4>
-                      <div className={`text-lg font-semibold ${getBiasColor(signal.score.score)} bg-gradient-to-r from-green-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent`}>
-                        {signal.score.score.toFixed(1)}/10
-                      </div>
+              <h3 className="text-lg font-medium mb-2 text-yellow-200">Filter MBFC Results</h3>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {/* Bias Filters */}
+                {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
+                  <FilterButton
+                    key={bias}
+                    label={`${bias} (${count})`}
+                    active={biasFilter === bias}
+                    onClick={() => setBiasFilter(biasFilter === bias ? null : bias)}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {/* Credibility Filters */}
+                {credOptions.map(cred => (
+                  <FilterButton
+                    key={cred}
+                    label={`Credibility: ${cred}`}
+                    active={credFilter === cred}
+                    onClick={() => setCredFilter(credFilter === cred ? null : (cred || ''))}
+                  />
+                ))}
+                {/* Factual Reporting Filters */}
+                {factOptions.map(fact => (
+                  <FilterButton
+                    key={fact}
+                    label={`Factual: ${fact}`}
+                    active={factFilter === fact}
+                    onClick={() => setFactFilter(factFilter === fact ? null : (fact || ''))}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {/* Country Filters */}
+                {countryOptions.map(country => (
+                  <FilterButton
+                    key={country}
+                    label={`Country: ${country}`}
+                    active={countryFilter === country}
+                    onClick={() => setCountryFilter(countryFilter === country ? null : (country || ''))}
+                  />
+                ))}
+                {/* Media Type Filters */}
+                {mediaTypeOptions.map(mt => (
+                  <FilterButton
+                    key={mt}
+                    label={`Media: ${mt}`}
+                    active={mediaTypeFilter === mt}
+                    onClick={() => setMediaTypeFilter(mediaTypeFilter === mt ? null : (mt || ''))}
+                  />
+                ))}
+              </div>
+              {anyFilter && (
+                <button
+                  className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
+                  onClick={() => {
+                    setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null);
+                  }}
+                  type="button"
+                >
+                  Clear All Filters
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* MBFCResults Card List (filtered) */}
+          {filteredDetails.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-medium mb-4 text-yellow-200">MBFC Results</h3>
+              <div className="grid grid-cols-1 gap-4">
+                {filteredDetails.map((d: MBFCDetail, i: number) => (
+                  
+                  <div key={i} className="bg-emerald-950/80 border border-yellow-400/20 rounded-xl p-4 flex flex-col shadow-md">
+                    <div className="flex items-center mb-2">
+                      {/* Bias Icon */}
+                      <span className="mr-2">
+                        {d.bias === 'Left' && <span title="Left" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-800 rounded-full" />}
+                        {d.bias === 'Left-Center' && <span title="Left-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-300 to-blue-600 rounded-full" />}
+                        {d.bias === 'Least Biased' && <span title="Least Biased" className="inline-block w-5 h-5 bg-gradient-to-br from-green-400 to-green-700 rounded-full" />}
+                        {d.bias === 'Right-Center' && <span title="Right-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-orange-300 to-orange-600 rounded-full" />}
+                        {d.bias === 'Right' && <span title="Right" className="inline-block w-5 h-5 bg-gradient-to-br from-red-400 to-red-700 rounded-full" />}
+                        {d.bias === 'Questionable' && <span title="Questionable" className="inline-block w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-700 rounded-full" />}
+                        {!d.bias && <span className="inline-block w-5 h-5 bg-gray-400 rounded-full" />}
+                      </span>
+
+                      {/* Bias Label */}
+                      <span className="font-bold text-yellow-100 text-lg mr-2">{d.bias || <span className="italic text-yellow-400">N/A</span>}</span>
+
+
+                      {d.credibility && (
+                        <span className="ml-2 px-2 py-0.5 rounded bg-yellow-800/60 text-yellow-200 text-xs font-semibold" title="Credibility">
+                          Credibility: {d.credibility}
+                        </span>
+                      )}
+                      {d.factual_reporting && (
+                        <span className="ml-2 px-2 py-0.5 rounded bg-emerald-800/60 text-emerald-200 text-xs font-semibold" title="Factual Reporting">
+                          Factual Reporting: {d.factual_reporting}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-yellow-300 text-sm mb-2">{signal.summary}</p>
-                    {signal.examples.length > 0 && (
-                      <div className="text-sm text-yellow-200">
-                        <span className="font-medium">Examples:</span> {signal.examples.join(', ')}
+
+                    <div className="mb-2">
+                      {isImageUrl(d.url) && (
+                        <div className="my-2">
+                          <Image
+                            src={d.url}
+                            alt={d.url}
+                            width={600}
+                            height={400}
+                            className="rounded-lg max-h-80 w-auto border border-yellow-400/10 shadow-md mx-auto"
+                            style={{ objectFit: 'contain', height: 'auto', maxHeight: '20rem' }}
+                            loading="lazy"
+                            unoptimized
+                          />
+                        </div>
+                      )}
+                      {isGalleryUrl(d.url) && (
+                        <div className="my-2 text-emerald-300 text-xs italic">
+                          [Reddit gallery post: <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline">View Gallery</a>]
+                        </div>
+                      )}
+                      <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline text-yellow-200 break-all hover:text-yellow-400 text-sm">
+                        {d.url}
+                      </a>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 text-xs text-yellow-300 mb-2">
+                      {d.source_name && <span title="Source Name" className="font-semibold">{d.source_name}</span>}
+                      {d.media_type && <span title="Media Type">[{d.media_type}]</span>}
+                      {d.country && <span title="Country">{d.country}</span>}
+                      {d.source_url && <span title="Source Domain">({d.source_url})</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-yellow-400 mb-2">
+                      {d.created_at && <span title="MBFC Entry Date">Added: {new Date(d.created_at).toLocaleDateString()}</span>}
+                      {d.id && <span title="MBFC DB ID">ID: {d.id}</span>}
+                    </div>
+                    {d.mbfc_url && (
+                      <div className="mt-2">
+                        <a href={d.mbfc_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded bg-yellow-700/80 text-yellow-100 font-semibold text-xs hover:bg-yellow-600 transition">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 21a4 4 0 005.657 0l.707-.707a4 4 0 000-5.657l-9.9-9.9a4 4 0 00-5.657 0l-.707.707a4 4 0 000 5.657l9.9 9.9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.343 17.657l1.414-1.414" /></svg>
+                          MBFC Article
+                        </a>
                       </div>
                     )}
                   </div>
@@ -124,55 +255,24 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
               </div>
             </div>
           )}
-          <div className="text-sm text-yellow-200">
-            Analyzed: {result.communityName} on {result.platform}
-            {result.analysisDate ? ` • ${new Date(result.analysisDate).toLocaleString()}` : ''}
+          {/* Meta Info */}
+          <div className="text-sm text-yellow-200 flex flex-wrap gap-4 mt-4">
+            <span>Analyzed: <span className="font-semibold">{result.communityName}</span> on <span className="font-semibold">{result.platform}</span></span>
+            {result.analysisDate && <span>Date: {new Date(result.analysisDate).toLocaleString()}</span>}
+            {typeof result.totalPosts === 'number' && <span>Total Posts: {result.totalPosts}</span>}
+            {typeof result.urlsChecked === 'number' && <span>URLs Checked: {result.urlsChecked}</span>}
           </div>
         </div>
       )}
-      {result && !result.overallScore && result.redditPosts && (
-        <div className="bg-gradient-to-br from-green-900/70 via-gray-900/80 to-yellow-800/40 shadow-lg rounded-2xl p-6 border border-yellow-400/20">
-          <h2 className="text-2xl font-semibold mb-6 bg-gradient-to-r from-green-300 via-yellow-300 to-yellow-500 bg-clip-text text-transparent">Reddit Posts</h2>
-          <div className="mb-4 text-yellow-200">No MBFC bias data found. Showing real Reddit post data only.</div>
-          <ul className="divide-y divide-yellow-400/10">
-            {result.redditPosts.map((post: RedditPost, idx: number) => {
-              const url = post.url;
-              const isImage = isImageUrl(url);
-              const isGallery = isGalleryUrl(url);
-              return (
-                <li key={idx} className="py-4">
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="text-yellow-200 font-medium hover:underline">
-                    {post.title}
-                  </a>
-                  <div className="text-sm text-yellow-300">by {post.author} | Score: {post.score}</div>
-                  <div className="text-xs text-yellow-400 break-all mb-2">{url}</div>
-                  {isImage && (
-                    <div className="my-2">
-                      <Image
-                        src={url}
-                        alt={post.title}
-                        width={600}
-                        height={400}
-                        className="rounded-lg max-h-80 w-auto border border-yellow-400/10 shadow-md mx-auto"
-                        style={{ objectFit: 'contain', height: 'auto', maxHeight: '20rem' }}
-                        loading="lazy"
-                        unoptimized
-                      />
-                    </div>
-                  )}
-                  {isGallery && (
-                    <div className="my-2 text-emerald-300 text-xs italic">
-                      [Reddit gallery post: <a href={url} target="_blank" rel="noopener noreferrer" className="underline">View Gallery</a>]
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+
+      {/* Always show Reddit post data if available */}
+      {result && result.redditPosts && result.redditPosts.length > 0 && (
+        <RedditPostsSection result={result} />
       )}
-    </div>
+      </div>
+
   );
+  
 };
 
 export default SubredditResults;
