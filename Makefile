@@ -81,6 +81,15 @@ health:
 	@curl -s http://localhost:9006 > /dev/null && echo "Backend: OK" || echo "Backend: FAILED"
 	@docker exec mysql mysqladmin ping -h localhost -u root -p$(MYSQL_ROOT_PASSWORD) > /dev/null && echo "MySQL: OK" || echo "MySQL: FAILED"
 
+# Open MySQL shell with .env credentials
+mysql-shell:
+	docker exec -it mysql mysql -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} $${MYSQL_DATABASE}
+
+# Backend reload
+backend-reload:
+	@echo "Reloading backend..."
+	docker compose down backend && docker compose up backend -d --build
+
 # Help
 help:
 	@echo "Available commands:"
