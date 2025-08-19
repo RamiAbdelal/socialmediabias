@@ -13,23 +13,41 @@ async function getMBFCBiasForUrls(urls, dbConfig) {
       }
     }).filter(Boolean);
     if (domains.length === 0) return [];
-    // Query MBFC database for each domain
+    // For each domain, try to match source_url by suffix (so subdomains match)
+    // Build a query with ORs and LIKEs
+    const likeClauses = domains.map(() => `source_url = ? OR ? LIKE CONCAT('%', source_url)`).join(' OR ');
+    const params = [];
+    domains.forEach(domain => {
+      // Remove subdomains for fallback matching
+      const parts = domain.split('.');
+      const rootDomain = parts.slice(-2).join('.');
+      params.push(rootDomain, domain);
+    });
     const [rows] = await connection.query(
-      `SELECT source_url, bias FROM mbfc_sources WHERE source_url IN (${domains.map(() => '?').join(',')})`,
-      domains
+      `SELECT * FROM mbfc_sources WHERE ${likeClauses}`,
+      params
     );
-    // Map results by domain
-    const biasMap = {};
+    // Map results by source_url, but keep the full row
+    const rowMap = {};
     for (const row of rows) {
-      biasMap[row.source_url] = row.bias;
+      rowMap[row.source_url] = row;
     }
-    // Return bias for each input url
+    // For each input url, find the best matching row (prefer exact, else suffix)
     return urls.map(url => {
-      const domain = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return null; } })();
-      return {
-        url,
-        bias: domain && biasMap[domain] ? biasMap[domain] : null
-      };
+      let domain = null;
+      try { domain = new URL(url).hostname.replace(/^www\./, ''); } catch {}
+      if (!domain) return { url };
+      // Try exact match first
+      if (rowMap[domain]) return { url, ...rowMap[domain] };
+      // Try root domain match (cnn.com for edition.cnn.com)
+      const parts = domain.split('.');
+      const rootDomain = parts.slice(-2).join('.');
+      if (rowMap[rootDomain]) return { url, ...rowMap[rootDomain] };
+      // Try any suffix match
+      for (const key in rowMap) {
+        if (domain.endsWith(key)) return { url, ...rowMap[key] };
+      }
+      return { url };
     });
   } finally {
     await connection.end();

@@ -96,6 +96,13 @@ app.post('/api/analyze', async (req, res) => {
             examples: urls.slice(0, 3)
           }
         ],
+        redditPosts: posts.map(p => ({
+          title: p.data && p.data.title,
+          url: p.data && p.data.url,
+          permalink: p.data && p.data.permalink,
+          author: p.data && p.data.author,
+          score: p.data && p.data.score
+        })),
         communityName: subreddit,
         platform: 'reddit',
         analysisDate: new Date().toISOString()
