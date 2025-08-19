@@ -3,7 +3,9 @@
 
 **Update (August 2025):**
 
-**Frontend state and logic now live at the very top of the app in `frontend/src/app/page.tsx`. All other pages and components (including `/reddit/r/[subreddit]`) are presentational only and receive their data via props or navigation.**
+**Frontend development should be done by running `npm run dev` in the `frontend` folder, which starts the Next.js dev server at [http://localhost:3000](http://localhost:3000). Full production builds run on port 9005 via Docker. The backend runs on port 9006.**
+
+**All frontend state and logic now live at the very top of the app in `frontend/src/app/page.tsx`. All other pages and components (including `/reddit/r/[subreddit]`) are presentational only and receive their data via props or navigation.**
 
 **Backend is now pure JavaScript (no TypeScript) for maximum simplicity and speed. All backend code now lives in `/app/` (not `/src/` or `/dist/`). The MVP goal is to deliver subreddit left-right bias detection using MBFC data as quickly as possible. All TypeScript, type-checking, and related build steps have been removed from the backend.**
 

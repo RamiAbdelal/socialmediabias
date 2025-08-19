@@ -1,3 +1,4 @@
+
 # Social Media Political Bias Analyzer
 
 A domain-driven web application that analyzes political bias in social media communities using multiple signals including media source bias detection and AI-powered sentiment analysis.
@@ -18,12 +19,27 @@ cd socialmediabias
 cp .env.example .env
 # Edit .env with your API keys
 
-# Start the application
+# Start the application (production build)
 docker-compose up --build
 
-# Access the application
-# Frontend: http://localhost:9005
-# Backend: http://localhost:9006
+# Development workflow
+## Frontend (Next.js)
+To develop the frontend, run:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+This will start the Next.js dev server at [http://localhost:3000](http://localhost:3000).
+
+Be sure to test that the production build on [http://localhost:9005](http://localhost:9005) is working correctly after development before committing any changes by restarting the frontend Docker container (which will recompile the Next.js production build using ```npm run build```) with ```docker compose up frontend -d --build```
+
+## Backend (Express)
+The backend runs on [http://localhost:9006](http://localhost:9006) (via Docker Compose or `npm run dev` in the backend folder).
+
+## Production
+Production builds run the frontend on port 9005 (http://localhost:9005) and the backend on port 9006.
 ```
 
 ## 🏗️ Architecture

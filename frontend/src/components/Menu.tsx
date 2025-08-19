@@ -35,7 +35,7 @@ const Menu: React.FC<MenuProps> = ({ popularSubreddits }) => {
         </button>
       </div>
       <div className="links flex flex-wrap gap-2">
-  {popularSubreddits.map((sub: Subreddit) => {
+        {popularSubreddits.map((sub: Subreddit) => {
           const match = sub.url.match(/\/r\/([^/]+)/i);
           const subredditSlug = match ? match[1].toLowerCase() : '';
           return (

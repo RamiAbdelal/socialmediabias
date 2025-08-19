@@ -21,3 +21,4 @@ export const popularSubreddits = [
   { name: 'r/centrist', url: 'https://www.reddit.com/r/centrist' },
   { name: 'r/PoliticalDiscussion', url: 'https://www.reddit.com/r/PoliticalDiscussion' },
 ];
+      

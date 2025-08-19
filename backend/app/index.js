@@ -11,7 +11,18 @@ const port = parseInt(process.env.BACKEND_INTERNAL_PORT || '3001', 10);
 
 app.use(express.json());
 app.use(cors({
-  origin: process.env.SITE_URL || 'http://localhost:9005',
+  origin: function (origin, callback) {
+    const allowed = [
+      'http://localhost:9005', // production
+      'http://localhost:3000', // Next.js dev
+      process.env.SITE_URL
+    ].filter(Boolean);
+    if (!origin || allowed.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 
