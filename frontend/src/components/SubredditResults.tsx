@@ -24,7 +24,6 @@ const defaultRedditSignal: RedditSignal = {
 import  RedditPostsSection from './RedditPostsSection';
 import { isImageUrl, isGalleryUrl } from '../lib/utils';
 import Image from 'next/image';
-import { useTheme } from '../context/ThemeContext';
 
 const getBiasColor = (score: number) => {
   if (score <= 2) return 'text-red-600';
@@ -41,7 +40,7 @@ const getConfidenceColor = (confidence: number) => {
 };
 
 const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLoading }) => {
-  const { colors } = useTheme();
+
   // --- FILTER STATE ---
   const [biasFilter, setBiasFilter] = useState<string|null>(null);
   const [credFilter, setCredFilter] = useState<string|null>(null);
@@ -101,7 +100,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
   const FilterButton = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
     <button
       className={`px-3 py-1 rounded-full border font-semibold text-xs transition-all shadow-sm mr-2 mb-2
-        ${active ? `${colors.ctaSecondary} ${colors.ctaSecondaryBorder}` : `${colors.secondaryBg} ${colors.secondary} border-yellow-400/30 hover:bg-yellow-700/30 hover:text-yellow-100`}`}
+        ${active ? `` : `border-yellow-400/30 hover:bg-yellow-700/30 hover:text-yellow-100`}`}
       onClick={onClick}
       type="button"
     >
@@ -113,9 +112,9 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
   const anyFilter = biasFilter || credFilter || factFilter || countryFilter || mediaTypeFilter;
 
   return (
-    <div className={`mb-8 ${colors.background} ${colors.foreground}`}>
+    <div className={`mb-8  `}>
       {error && (
-        <div className={`${colors.card} ${colors.border} rounded-lg p-4 mb-8 ${colors.shadow} ${colors.muted}`}>
+        <div className={`rounded-lg p-4 mb-8`}>
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-300" viewBox="0 0 20 20" fill="currentColor">
@@ -130,31 +129,31 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
         </div>
       )}
       {isLoading && (
-        <div className={`${colors.muted} text-lg mb-8`}>Analyzing subreddit...</div>
+        <div className={`text-lg mb-8`}>Analyzing subreddit...</div>
       )}
       {result && result.overallScore && (
-        <div className={`${colors.card} ${colors.border} ${colors.shadow} rounded-2xl p-6 mb-8`}>
-          <h2 className={`text-2xl font-semibold mb-6 ${colors.accent}`}>Analysis Results</h2>
+        <div className={`rounded-2xl p-6 mb-8`}>
+          <h2 className={`text-2xl font-semibold mb-6`}>Analysis Results</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className={`${colors.card} rounded-lg p-4 ${colors.border}`}>
-              <h3 className={`text-lg font-medium mb-2 ${colors.accent}`}>Overall Bias Score</h3>
-              <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)} ${colors.accent}`}>
+            <div className={`rounded-lg p-4 `}>
+              <h3 className={`text-lg font-medium mb-2`}>Overall Bias Score</h3>
+              <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)}`}>
                 {result.overallScore.score.toFixed(1)}/10
               </div>
-              <div className={`${colors.muted} capitalize`}>{result.overallScore.label}</div>
+              <div className={` capitalize`}>{result.overallScore.label}</div>
             </div>
-            <div className={`${colors.card} rounded-lg p-4 ${colors.border}`}>
-              <h3 className={`text-lg font-medium mb-2 ${colors.accent}`}>Confidence</h3>
-              <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)} ${colors.accent}`}>
+            <div className={`rounded-lg p-4 `}>
+              <h3 className={`text-lg font-medium mb-2`}>Confidence</h3>
+              <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)}`}>
                 {Math.round(result.overallScore.confidence * 100)}%
               </div>
-              <div className={colors.muted}>Analysis confidence</div>
+              <div>Analysis confidence</div>
             </div>
           </div>
           {/* Bias Breakdown & Filters */}
           {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
             <div className="mb-6">
-              <h3 className={`text-lg font-medium mb-2 ${colors.accent}`}>Filter MBFC Results</h3>
+              <h3 className={`text-lg font-medium mb-2`}>Filter MBFC Results</h3>
               <div className="flex flex-wrap gap-2 mb-2">
                 {/* Bias Filters */}
                 {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
@@ -223,11 +222,11 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
           {/* MBFCResults Card List (filtered) */}
           {filteredDetails.length > 0 && (
             <div className="mb-6">
-              <h3 className={`text-lg font-medium mb-4 ${colors.accent}`}>MBFC Results</h3>
+              <h3 className={`text-lg font-medium mb-4`}>MBFC Results</h3>
               <div className="grid grid-cols-1 gap-4">
                 {filteredDetails.map((d: RedditSignal, i: number) => (
                   
-                  <div key={i} className={`${colors.card} ${colors.border} rounded-xl p-4 flex flex-col ${colors.shadow}`}>
+                  <div key={i} className={`$  rounded-xl p-4 flex flex-col `}>
 
                     <div className="flex items-center mb-2">
                       
@@ -243,7 +242,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
                       </span>}
 
                       {/* Bias Label or Reddit Title */}
-                      <span className={`font-bold ${colors.primary} text-lg mr-2`}>{d.bias || d.title }</span>
+                      <span className={`font-bold text-lg mr-2`}>{d.bias || d.title }</span>
                       {d.credibility && (
                         <span className="ml-2 px-2 py-0.5 rounded bg-yellow-800/60 text-yellow-200 text-xs font-semibold" title="Credibility">
                           Credibility: {d.credibility}
@@ -280,28 +279,28 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
                         </div>
                       )}
                       {isGalleryUrl(d.url) && (
-                        <div className={`my-2 ${colors.secondary} text-xs italic`}>
+                        <div className={`my-2  text-xs italic`}>
                           [Reddit gallery post: <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline">View Gallery</a>]
                         </div>
                       )}
-                      <a href={d.url} target="_blank" rel="noopener noreferrer" className={`underline ${colors.primary} break-all hover:${colors.secondary} text-sm`}>
+                      <a href={d.url} target="_blank" rel="noopener noreferrer" className={`underline break-all hover: text-sm`}>
                         {d.url}
                       </a>
                     </div>
 
-                    <div className={`flex flex-wrap gap-2 text-xs ${colors.muted} mb-2`}>
+                    <div className={`flex flex-wrap gap-2 text-xs  mb-2`}>
                       {d.source_name && <span title="Source Name" className="font-semibold">{d.source_name}</span>}
                       {d.media_type && <span title="Media Type">[{d.media_type}]</span>}
                       {d.country && <span title="Country">{d.country}</span>}
                       {d.source_url && <span title="Source Domain">({d.source_url})</span>}
                     </div>
-                    <div className={`flex flex-wrap gap-2 text-xs ${colors.muted} mb-2`}>
+                    <div className={`flex flex-wrap gap-2 text-xs  mb-2`}>
                       {d.created_at && <span title="MBFC Entry Date">Added: {new Date(d.created_at).toLocaleDateString()}</span>}
                       {d.id && <span title="MBFC DB ID">ID: {d.id}</span>}
                     </div>
                     {d.mbfc_url && (
                       <div className="mt-2">
-                        <a href={d.mbfc_url} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 px-3 py-1 rounded ${colors.cta} font-semibold text-xs transition`}>
+                        <a href={d.mbfc_url} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 px-3 py-1 rounded font-semibold text-xs transition`}>
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 21a4 4 0 005.657 0l.707-.707a4 4 0 000-5.657l-9.9-9.9a4 4 0 00-5.657 0l-.707.707a4 4 0 000 5.657l9.9 9.9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.343 17.657l1.414-1.414" /></svg>
                           MBFC Article
                         </a>
@@ -313,7 +312,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
             </div>
           )}
           {/* Meta Info */}
-          <div className={`text-sm ${colors.muted} flex flex-wrap gap-4 mt-4`}>
+          <div className={`text-sm  flex flex-wrap gap-4 mt-4`}>
             <span>Analyzed: <span className="font-semibold">{result.communityName}</span> on <span className="font-semibold">{result.platform}</span></span>
             {result.analysisDate && <span>Date: {new Date(result.analysisDate).toLocaleString()}</span>}
             {typeof result.totalPosts === 'number' && <span>Total Posts: {result.totalPosts}</span>}

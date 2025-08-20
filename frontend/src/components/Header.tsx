@@ -1,18 +1,14 @@
 "use client";
-
-import { useTheme } from '../context/ThemeContext';
+import { Card, CardHeader } from "@heroui/react";
 
 const Header: React.FC = () => {
-  const { colors } = useTheme();
   return (
-    <div className="header text-center mb-8">
-      <h1 className={`header__title text-4xl font-extrabold mb-4 ${colors.accent} drop-shadow-lg`}>
-        Social Media Bias Analyzer
-      </h1>
-      <p className={`header__subtitle text-lg ${colors.muted}`}>
-        Analyze political bias in social media communities
-      </p>
-    </div>
+    <Card className="text-center mb-8 p-8">
+      <CardHeader>
+        <h1 className="text-4xl font-extrabold mb-2">Social Media Bias Analyzer</h1>
+        <p className="text-lg text-gray-400">Analyze political bias in social media communities</p>
+      </CardHeader>
+    </Card>
   );
 };
 

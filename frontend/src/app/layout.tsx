@@ -7,8 +7,7 @@ import Header from "../components/Header";
 import Menu from "../components/Menu";
 import { popularSubreddits } from "../lib/popularSubreddits";
 import { AnalysisProvider } from "../context/AnalysisContext";
-import { ThemeProvider } from "../context/ThemeContext";
-import ThemeToggle from "../components/ThemeToggle";
+import HeroUIClientProvider from "./HeroUIClientProvider";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -22,9 +21,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider>
+        <HeroUIClientProvider>
           <div className="min-h-screen w-full transition-colors duration-300" style={{ minHeight: '100vh' }}>
-            <ThemeToggle />
             <div className="max-w-4xl mx-auto w-full flex flex-col">
               <AnalysisProvider>
                 <Header />
@@ -33,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </AnalysisProvider>
             </div>
           </div>
-        </ThemeProvider>
+        </HeroUIClientProvider>
       </body>
     </html>
   );
