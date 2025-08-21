@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image } from '@heroui/react';
+import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem } from '@heroui/react';
 import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
 // Default RedditSignal object for clean merging
@@ -137,11 +137,14 @@ async function fetchOgImage(url: string): Promise<string | null> {
       .map((d: RedditSignal) => d.url as string);
     if (urlsToFetch.length === 0) return;
     urlsToFetch.forEach(async (url: string) => {
+      // Mark as loading to prevent duplicate fetches
+      setOgImages(prev => ({ ...prev, [url]: null }));
       const og = await fetchOgImage(url);
+      // Always set, even if null, so we don't retry failed URLs
       setOgImages(prev => ({ ...prev, [url]: og }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredDetails, ogImages]);
+  }, [filteredDetails]);
 
   return (
     <div className="mb-8">
@@ -173,7 +176,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
           
 
           {/* Overall Bias Score & Confidence */}
-          <CardBody className="p-6">  
+          <CardBody className="p-6 pb-0">  
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="dark:bg-neutral-800 rounded-lg shadow-xl p-4">
                 <h3 className="text-lg font-medium mb-2">Overall Bias Score</h3>
@@ -192,108 +195,108 @@ async function fetchOgImage(url: string): Promise<string | null> {
             </div>
           </CardBody>
 
-          {/* Bias Breakdown & Filters */}
-          <CardBody className="p-6 pt-0">
+          {/* Bias Breakdown & Filters in Accordion */}
+          <CardBody className="px-6 py-0">
             {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
-              <div className="flex flex-col items-start flex-wrap">
-                <h3 className="text-lg font-medium mb-3">Filter</h3>
-                <div className="flex flex-row items-start flex-wrap">
-                {/* Bias Filters */}
-                <div className="mb-4 mr-4">
-                  <div className="font-semibold text-sm mb-2">Bias</div>
-                  <ButtonGroup className="flex flex-wrap items-start justify-start">
-                    {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
-                      <FilterButton
-                        key={bias}
-                        label={`${bias} (${count})`}
-                        active={biasFilter === bias}
-                        onClick={() => setBiasFilter(biasFilter === bias ? null : bias)}
-                      />
-                    ))}
-                  </ButtonGroup>
-                </div>
-                {/* Credibility Filters */}
-                <div className="mb-4 mr-4">
-                  <div className="font-semibold text-sm mb-2">Credibility</div>
-                  <ButtonGroup className="flex flex-wrap items-start justify-start">
-                    {credOptions.map(cred => {
-                      const count = allDetails.filter(d => d.credibility === cred).length;
-                      return (
-                        <FilterButton
-                          key={cred}
-                          label={`${cred} (${count})`}
-                          active={credFilter === cred}
-                          onClick={() => setCredFilter(credFilter === cred ? null : (cred || ''))}
-                        />
-                      );
-                    })}
-                  </ButtonGroup>
-                </div>
-                {/* Factual Reporting Filters */}
-                <div className="mb-4 mr-4">
-                  <div className="font-semibold text-sm mb-2">Factual Reporting</div>
-                  <ButtonGroup className="flex flex-wrap items-start justify-start">
-                    {factOptions.map(fact => {
-                      const count = allDetails.filter(d => d.factual_reporting === fact).length;
-                      return (
-                        <FilterButton
-                          key={fact}
-                          label={`${fact} (${count})`}
-                          active={factFilter === fact}
-                          onClick={() => setFactFilter(factFilter === fact ? null : (fact || ''))}
-                        />
-                      );
-                    })}
-                  </ButtonGroup>
-                </div>
-                {/* Country Filters */}
-                <div className="mb-4 mr-4">
-                  <div className="font-semibold text-sm mb-2">Country</div>
-                  <ButtonGroup className="flex flex-wrap items-start justify-start">
-                    {countryOptions.map(country => {
-                      const count = allDetails.filter(d => d.country === country).length;
-                      return (
-                        <FilterButton
-                          key={country}
-                          label={`${country} (${count})`}
-                          active={countryFilter === country}
-                          onClick={() => setCountryFilter(countryFilter === country ? null : (country || ''))}
-                        />
-                      );
-                    })}
-                  </ButtonGroup>
-                </div>
-                {/* Media Type Filters */}
-                <div className="mb-4 mr-4">
-                  <div className="font-semibold text-sm mb-2">Media Type</div>
-                  <ButtonGroup className="flex flex-wrap items-start justify-start">
-                    {mediaTypeOptions.map(mt => {
-                      const count = allDetails.filter(d => d.media_type === mt).length;
-                      return (
-                        <FilterButton
-                          key={mt}
-                          label={`${mt} (${count})`}
-                          active={mediaTypeFilter === mt}
-                          onClick={() => setMediaTypeFilter(mediaTypeFilter === mt ? null : (mt || ''))}
-                        />
-                      );
-                    })}
-                  </ButtonGroup>
-                </div>
-                </div>
-
-                {anyFilter && (
-                  <button
-                    className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
-                    onClick={() => {
-                      setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null);
-                    }}
-                    type="button"
-                  >
-                    Clear All Filters
-                  </button>
-                )}
-              </div>
+              <Accordion defaultValue={["filters"]} className="w-full mb-4 overflow-y-hidden">
+                <AccordionItem value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full">
+                  <div className="flex flex-row items-start flex-wrap">
+                    {/* Bias Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Bias</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
+                          <FilterButton
+                            key={bias}
+                            label={`${bias} (${count})`}
+                            active={biasFilter === bias}
+                            onClick={() => setBiasFilter(biasFilter === bias ? null : bias)}
+                          />
+                        ))}
+                      </ButtonGroup>
+                    </div>
+                    {/* Credibility Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Credibility</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {credOptions.map(cred => {
+                          const count = allDetails.filter(d => d.credibility === cred).length;
+                          return (
+                            <FilterButton
+                              key={cred}
+                              label={`${cred} (${count})`}
+                              active={credFilter === cred}
+                              onClick={() => setCredFilter(credFilter === cred ? null : (cred || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Factual Reporting Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Factual Reporting</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {factOptions.map(fact => {
+                          const count = allDetails.filter(d => d.factual_reporting === fact).length;
+                          return (
+                            <FilterButton
+                              key={fact}
+                              label={`${fact} (${count})`}
+                              active={factFilter === fact}
+                              onClick={() => setFactFilter(factFilter === fact ? null : (fact || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Country Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Country</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {countryOptions.map(country => {
+                          const count = allDetails.filter(d => d.country === country).length;
+                          return (
+                            <FilterButton
+                              key={country}
+                              label={`${country} (${count})`}
+                              active={countryFilter === country}
+                              onClick={() => setCountryFilter(countryFilter === country ? null : (country || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Media Type Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Media Type</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {mediaTypeOptions.map(mt => {
+                          const count = allDetails.filter(d => d.media_type === mt).length;
+                          return (
+                            <FilterButton
+                              key={mt}
+                              label={`${mt} (${count})`}
+                              active={mediaTypeFilter === mt}
+                              onClick={() => setMediaTypeFilter(mediaTypeFilter === mt ? null : (mt || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                  </div>
+                  {anyFilter && (
+                    <button
+                      className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
+                      onClick={() => {
+                        setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null);
+                      }}
+                      type="button"
+                    >
+                      Clear All Filters
+                    </button>
+                  )}
+                </AccordionItem>
+              </Accordion>
             )}
           </CardBody>
           <Divider className='opacity-50'/>
@@ -355,7 +358,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
 
                       <div className="mb-4 mr-4">
                         {isImageUrl(d.url) && (
-                          <div className="my-2">
+                          <div className="my-2 flex flex-col items-center">
                             <Image
                               src={d.url}
                               alt={d.url}
@@ -375,7 +378,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
                         )}
                         {/* OG:image preview for non-image URLs */}
                         {!isImageUrl(d.url) && !isGalleryUrl(d.url) && ogImages[d.url] && (
-                          <div className="my-2">
+                          <div className="my-2 flex flex-col items-center">
                             <Image
                               src={ogImages[d.url] as string}
                               alt={d.url}
