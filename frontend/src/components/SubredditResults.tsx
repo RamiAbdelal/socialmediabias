@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider } from '@heroui/react';
-
+import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image } from '@heroui/react';
+import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
 // Default RedditSignal object for clean merging
 const defaultRedditSignal: RedditSignal = {
@@ -24,7 +24,6 @@ const defaultRedditSignal: RedditSignal = {
 };
 import  RedditPostsSection from './RedditPostsSection';
 import { isImageUrl, isGalleryUrl } from '../lib/utils';
-import Image from 'next/image';
 
 const getBiasColor = (score: number) => {
   if (score <= 2) return 'text-red-600';
@@ -116,6 +115,33 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
 
   // --- CLEAR FILTERS BUTTON ---
   const anyFilter = biasFilter || credFilter || factFilter || countryFilter || mediaTypeFilter;
+
+  // Utility to fetch OG:image from a URL
+async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/og-image?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.ogImage || null;
+  } catch {
+    return null;
+  }
+}
+  // --- OG IMAGE STATE ---
+  const [ogImages, setOgImages] = useState<{ [url: string]: string | null }>({});
+
+  useEffect(() => {
+    // Only fetch for filteredDetails that are not images/galleries and not already fetched
+    const urlsToFetch = filteredDetails
+      .filter((d: RedditSignal) => d.url && !isImageUrl(d.url) && !isGalleryUrl(d.url) && !(d.url in ogImages))
+      .map((d: RedditSignal) => d.url as string);
+    if (urlsToFetch.length === 0) return;
+    urlsToFetch.forEach(async (url: string) => {
+      const og = await fetchOgImage(url);
+      setOgImages(prev => ({ ...prev, [url]: og }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredDetails, ogImages]);
 
   return (
     <div className="mb-8">
@@ -335,16 +361,31 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
                               alt={d.url}
                               width={600}
                               height={400}
-                              className="rounded-lg max-h-80 w-auto border border-yellow-400/10 shadow-md mx-auto"
-                              style={{ objectFit: 'contain', height: 'auto', maxHeight: '20rem' }}
+                              className="rounded-lg max-h-80 w-auto shadow-md mx-auto"
+                              style={{ objectFit: 'contain', height: 'auto' }}
                               loading="lazy"
-                              unoptimized
+                              // as={NextImage}
                             />
                           </div>
                         )}
                         {isGalleryUrl(d.url) && (
                           <div className="my-2 text-emerald-300 text-xs italic">
                             [Reddit gallery post: <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline">View Gallery</a>]
+                          </div>
+                        )}
+                        {/* OG:image preview for non-image URLs */}
+                        {!isImageUrl(d.url) && !isGalleryUrl(d.url) && ogImages[d.url] && (
+                          <div className="my-2">
+                            <Image
+                              src={ogImages[d.url] as string}
+                              alt={d.url}
+                              width={600}
+                              height={400}
+                              className="rounded-lg max-h-80 w-auto shadow-md mx-auto"
+                              style={{ objectFit: 'contain', height: 'auto' }}
+                              loading="lazy"
+                              // as={NextImage}
+                            />
                           </div>
                         )}
                         <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline break-all hover:text-yellow-400 text-sm">
