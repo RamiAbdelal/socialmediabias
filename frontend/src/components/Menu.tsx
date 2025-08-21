@@ -4,6 +4,7 @@
 import React from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useRouter } from 'next/navigation';
+import { Card, CardBody, CardHeader, CardFooter, Avatar, Button } from '@heroui/react';
 
 
 type Subreddit = { name: string; url: string };
@@ -11,12 +12,16 @@ interface MenuProps {
   popularSubreddits: Subreddit[];
 }
 
-
 const Menu: React.FC<MenuProps> = ({ popularSubreddits }) => {
   const { communityName, setCommunityName, isLoading, analyzeCommunity } = useAnalysis();
   const router = useRouter();
   return (
     <div className="menu bg-gradient-to-br from-green-900/70 via-gray-900/80 to-yellow-800/40 shadow-xl rounded-2xl p-6 mb-8 border border-yellow-400/20 backdrop-blur-md">
+
+      <div className="flex w-full flex-wrap md:flex-nowrap gap-4">
+
+      </div>
+      
       <div className="main-input flex gap-4 mb-4">
         <input
           type="text"
