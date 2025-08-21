@@ -10,6 +10,10 @@ module.exports = {
   theme: {
     extend: {},
   },
-  darkMode: "class", // TODO: Add a dark class to <body> or root for dark mode depending on client preference
+  /**
+   * TODO: Add a dark class to <body> or root for dark mode depending on client preference. @custom-variant dark (&:is(.dark *)) 
+   * in hero.ts is also involved;
+  */
+  darkMode: "class", 
   plugins: [heroui()],
 };

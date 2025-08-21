@@ -1,3 +1,5 @@
+import { ParamValue } from "next/dist/server/request/params";
+
 export interface BiasScore {
   score: number;
   confidence: number;
@@ -70,6 +72,7 @@ export interface AnalysisResult {
 }
 
 export interface SubredditResultsProps {
+  subreddit: ParamValue;
   result: AnalysisResult | null;
   error: string | null;
   isLoading: boolean;

@@ -11,7 +11,7 @@ export default function HomePage() {
     <main>
       {isLoading && <p className="text-gray-400">Analyzing subreddit...</p>}
       {error && <p className="text-red-500">{error}</p>}
-  {result && <SubredditResults result={result} error={error} isLoading={isLoading} />}
+      {/* {result && <SubredditResults subreddit={} result={result} error={error} isLoading={isLoading} />} */}
     </main>
   );
 }
