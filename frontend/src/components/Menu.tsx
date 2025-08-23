@@ -35,7 +35,7 @@ const Menu: React.FC<MenuProps> = ({ popularSubreddits }) => {
         <Button
           variant="flat"
           size="lg"
-          onClick={() => analyzeCommunity(communityName)}
+          onChange={() => analyzeCommunity(communityName)}
           isLoading={isLoading}
           disabled={isLoading || !communityName.trim()}
           className="min-w-[200] bg-gradient-to-tr from-sky-400 to-blue-800 text-white rounded-md shadow-xl hover:from-green-500 hover:to-yellow-400 transition disabled:opacity-50"
@@ -53,7 +53,7 @@ const Menu: React.FC<MenuProps> = ({ popularSubreddits }) => {
               type="button"
               variant="flat"
               onClick={() => router.push(`/reddit/r/${subredditSlug}`)}
-              className="px-3 py-1 rounded-full "
+              className="px-3 py-1 rounded-full hover:bg-gray-700"
               style={{ minWidth: 'fit-content' }}
             >
               {sub.name}

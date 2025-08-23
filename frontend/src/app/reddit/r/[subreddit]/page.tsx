@@ -7,7 +7,7 @@ import { useAnalysis } from "../../../../context/AnalysisContext";
 import SubredditResults from "../../../../components/SubredditResults";
 
 export default function SubredditPage() {
-  const { subreddit } = useParams();
+  const subreddit = (useParams() as { subreddit: string }).subreddit;
   const { analyzeCommunity, result, error, isLoading } = useAnalysis();
 
   useEffect(() => {

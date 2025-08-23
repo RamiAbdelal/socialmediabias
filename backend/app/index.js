@@ -32,6 +32,25 @@ app.get('/', (_, res) => res.json({
   version: 'MVP-JS',
 }));
 
+// --- Reddit OAuth2 helper ---
+async function getRedditAccessToken() {
+  const creds = Buffer.from(
+    process.env.REDDIT_CLIENT_ID + ':' + process.env.REDDIT_CLIENT_SECRET
+  ).toString('base64');
+  const res = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${creds}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
+    },
+    body: 'grant_type=client_credentials'
+  });
+  if (!res.ok) throw new Error('Failed to get Reddit access token');
+  const data = await res.json();
+  return data.access_token;
+}
+
 // POST /api/analyze { redditUrl: string }
 app.post('/api/analyze', async (req, res) => {
   console.info("Received analyze request");
@@ -40,23 +59,28 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Valid redditUrl required' });
   }
   try {
-    // Fetch top posts from subreddit (Reddit public API, no auth for MVP)
+    // Fetch top posts from subreddit (Reddit OAuth2 API)
     const subredditMatch = redditUrl.match(/reddit\.com\/(r\/[^\/]+)/);
     if (!subredditMatch) return res.status(400).json({ error: 'Could not extract subreddit' });
     const subreddit = subredditMatch[1];
-    const apiUrl = `https://www.reddit.com/${subreddit}/top.json?limit=25&t=month`;
-    const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'smb-mvp/0.1' } });
+    const accessToken = await getRedditAccessToken();
+    const apiUrl = `https://oauth.reddit.com/${subreddit}/top.json?limit=25&t=month`;
+    const apiRes = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
+      }
+    });
     if (!apiRes.ok) throw new Error('Failed to fetch subreddit');
     const apiJson = await apiRes.json();
     const posts = (apiJson.data && apiJson.data.children) ? apiJson.data.children : [];
 
     console.info(`Fetched ${posts.length} posts from subreddit: ${subreddit}`);
-
-    console.info("API JSON:", apiJson); 
+    console.info("API JSON:", apiJson);
 
     // Extract all URLs from posts
     const urls = posts.map(p => p.data && p.data.url).filter(u => u && /^https?:\/\//.test(u));
-    
+
     // Check MBFC bias for each URL (mock if DB not loaded)
     let biasResults = [];
     let biasCount = {};

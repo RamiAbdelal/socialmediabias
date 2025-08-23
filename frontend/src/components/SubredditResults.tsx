@@ -131,10 +131,11 @@ async function fetchOgImage(url: string): Promise<string | null> {
   const [ogImages, setOgImages] = useState<{ [url: string]: string | null }>({});
 
   useEffect(() => {
-    // Only fetch for filteredDetails that are not images/galleries and not already fetched
-    const urlsToFetch = filteredDetails
+    // Only fetch for allDetails that are not images/galleries and not already fetched
+    const urlsToFetch = allDetails
       .filter((d: RedditSignal) => d.url && !isImageUrl(d.url) && !isGalleryUrl(d.url) && !(d.url in ogImages))
       .map((d: RedditSignal) => d.url as string);
+      
     if (urlsToFetch.length === 0) return;
     urlsToFetch.forEach(async (url: string) => {
       // Mark as loading to prevent duplicate fetches
@@ -144,7 +145,47 @@ async function fetchOgImage(url: string): Promise<string | null> {
       setOgImages(prev => ({ ...prev, [url]: og }));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredDetails]);
+  }, [allDetails]);
+
+  // Utility to check if a permalink is a Reddit comment URL
+function isRedditCommentPermalink(permalink: string) {
+  // Reddit comment permalinks are like /r/sub/comments/postid/title/commentid/
+  // They have at least 6 segments when split by '/'
+  if (!permalink) return false;
+  const parts = permalink.split('/').filter(Boolean);
+  return parts.length >= 6 && parts[0] === 'r' && parts[2] === 'comments';
+}
+
+// Utility to fetch a Reddit comment body from a permalink (calls backend API to avoid CORS)
+async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
+  try {
+    const res = await fetch(`/api/reddit-comment?permalink=${encodeURIComponent(permalink)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.body === 'string' ? data.body : null;
+  } catch {
+    return null;
+  }
+}
+
+  // --- REDDIT COMMENT STATE ---
+  const [commentBodies, setCommentBodies] = useState<{ [permalink: string]: string|null }>({});
+
+  useEffect(() => {
+    // Find all unique permalinks that look like Reddit comment URLs and are not already fetched
+    const permalinksToFetch = allDetails
+      .map((d: RedditSignal) => d.permalink)
+      .filter((p: string | undefined): p is string => !!p && isRedditCommentPermalink(p) && !(p in commentBodies));
+    if (permalinksToFetch.length === 0) return;
+    permalinksToFetch.forEach(async (permalink: string) => {
+      setCommentBodies(prev => ({ ...prev, [permalink]: null })); // mark as loading
+      const body = await fetchRedditCommentBody(permalink);
+      setCommentBodies(prev => ({ ...prev, [permalink]: body }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDetails]);
+
+  console.log("Comments?", commentBodies)
 
   return (
     <div className="mb-8">
@@ -303,7 +344,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
             {/* MBFCResults Card List (filtered) */}
             {filteredDetails.length > 0 && (
               <CardBody className="p-6">
-                <h3 className="text-lg font-medium mb-4">MBFC Results</h3>
+                {/* <h3 className="text-lg font-medium mb-4">MBFC Results</h3> */}
                 <div className="grid grid-cols-1 gap-4">
                   {filteredDetails.map((d: RedditSignal, i: number) => (
                     
@@ -311,24 +352,24 @@ async function fetchOgImage(url: string): Promise<string | null> {
 
                       <div className="flex flex-col items-start mb-2">
                         
-
-
                         {/* Bias Label or Reddit Title */}
-                        <div className="font-bold text-yellow-100 text-lg mr-2">{d.title }</div>
+                        <div className="text-blue-100 text-xl">{d.title}</div>
 
-                        <div className="font-bold text-yellow-100 text-lg mr-2">
-                          {/* Bias Icon */}
-                          {d.bias && <span className="mr-2">
-                            {d.bias === 'Left' && <span title="Left" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-800 rounded-full" />}
-                            {d.bias === 'Left-Center' && <span title="Left-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-300 to-blue-600 rounded-full" />}
-                            {d.bias === 'Least Biased' && <span title="Least Biased" className="inline-block w-5 h-5 bg-gradient-to-br from-green-400 to-green-700 rounded-full" />}
-                            {d.bias === 'Right-Center' && <span title="Right-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-orange-300 to-orange-600 rounded-full" />}
-                            {d.bias === 'Right' && <span title="Right" className="inline-block w-5 h-5 bg-gradient-to-br from-red-400 to-red-700 rounded-full" />}
-                            {d.bias === 'Questionable' && <span title="Questionable" className="inline-block w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-700 rounded-full" />}
-                            {!d.bias && <span className="inline-block w-5 h-5 bg-gray-400 rounded-full" />}
-                          </span>}
-                          {d.bias}
-                        </div>
+                        {d.bias &&
+                          <div className="text-blue-100 text-lg py-3">
+                            {/* Bias Icon */}
+                            <span className="mr-2">
+                              {d.bias === 'Left' && <span title="Left" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-800 rounded-full" />}
+                              {d.bias === 'Left-Center' && <span title="Left-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-300 to-blue-600 rounded-full" />}
+                              {d.bias === 'Least Biased' && <span title="Least Biased" className="inline-block w-5 h-5 bg-gradient-to-br from-green-400 to-green-700 rounded-full" />}
+                              {d.bias === 'Right-Center' && <span title="Right-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-orange-300 to-orange-600 rounded-full" />}
+                              {d.bias === 'Right' && <span title="Right" className="inline-block w-5 h-5 bg-gradient-to-br from-red-400 to-red-700 rounded-full" />}
+                              {d.bias === 'Questionable' && <span title="Questionable" className="inline-block w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-700 rounded-full" />}
+                              {!d.bias && <span className="inline-block w-5 h-5 bg-gray-400 rounded-full" />}
+                            </span>
+                            {d.bias}
+                          </div>
+                        }
                         
                         <div className="flex gap-2 text-sm">
                           {d.credibility && (
@@ -356,7 +397,7 @@ async function fetchOgImage(url: string): Promise<string | null> {
                         )}
                       </div>  
 
-                      <div className="mb-4 mr-4">
+                      <div className="mr-4">
                         {isImageUrl(d.url) && (
                           <div className="my-2 flex flex-col items-center">
                             <Image
@@ -394,18 +435,43 @@ async function fetchOgImage(url: string): Promise<string | null> {
                         <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline break-all hover:text-yellow-400 text-sm">
                           {d.url}
                         </a>
+                        {d.permalink && (
+                          <div className="mt-1">
+                            <a
+                              href={`https://reddit.com${d.permalink}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-blue-300 text-xs hover:text-yellow-400 break-all"
+                            >
+                              Reddit Permalink
+                            </a>
+                            {/* Show Reddit comment body if this is a comment permalink */}
+                            {isRedditCommentPermalink(d.permalink) && (
+                              <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
+                                {commentBodies && commentBodies[d.permalink] === undefined && <span className="italic text-gray-400">Loading comment...</span>}
+                                {commentBodies && commentBodies[d.permalink] === null && <span className="italic text-red-400">Could not load comment.</span>}
+                                {commentBodies && typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
+                                  <span>{commentBodies[d.permalink]}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-
-                      <div className="flex flex-wrap gap-2 text-xs text-yellow-300 mb-2">
-                        {d.source_name && <span title="Source Name" className="font-semibold">{d.source_name}</span>}
-                        {d.media_type && <span title="Media Type">[{d.media_type}]</span>}
-                        {d.country && <span title="Country">{d.country}</span>}
-                        {d.source_url && <span title="Source Domain">({d.source_url})</span>}
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs text-yellow-400 mb-2">
-                        {d.created_at && <span title="MBFC Entry Date">Added: {new Date(d.created_at).toLocaleDateString()}</span>}
-                        {d.id && <span title="MBFC DB ID">ID: {d.id}</span>}
-                      </div>
+                      {(d.source_name || d.media_type || d.country || d.source_url) && (
+                        <div className="flex flex-wrap gap-2 text-xs text-yellow-300 my-2">
+                          {d.source_name && <span title="Source Name" className="font-semibold">{d.source_name}</span>}
+                          {d.media_type && <span title="Media Type">[{d.media_type}]</span>}
+                          {d.country && <span title="Country">{d.country}</span>}
+                          {d.source_url && <span title="Source Domain">({d.source_url})</span>}
+                        </div>
+                      )}
+                      {(d.created_at || d.id) && (
+                        <div className="flex flex-wrap gap-2 text-xs text-yellow-400 mb-2">
+                          {d.created_at && <span title="MBFC Entry Date">Added: {new Date(d.created_at).toLocaleDateString()}</span>}
+                          {d.id && <span title="MBFC DB ID">ID: {d.id}</span>}
+                        </div>
+                      )}
                       {d.mbfc_url && (
                         <div className="mt-2">
                           <a href={d.mbfc_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1 rounded bg-yellow-700/80 text-yellow-100 font-semibold text-xs hover:bg-yellow-600 transition">
