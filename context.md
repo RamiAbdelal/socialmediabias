@@ -1,15 +1,6 @@
 # 🧠 Social Media Political Bias Analyzer
 
-
-**Update (August 2025):**
-
-**Frontend development should be done by running `npm run dev` in the `frontend` folder, which starts the Next.js dev server at [http://localhost:3000](http://localhost:3000). Full production builds run on port 9005 via Docker. The backend runs on port 9006.**
-
-**All frontend state and logic now live at the very top of the app in `frontend/src/app/page.tsx`. All other pages and components (including `/reddit/r/[subreddit]`) are presentational only and receive their data via props or navigation.**
-
-**Backend is now pure JavaScript (no TypeScript) for maximum simplicity and speed. All backend code now lives in `/app/` (not `/src/` or `/dist/`). The MVP goal is to deliver subreddit left-right bias detection using MBFC data as quickly as possible. All TypeScript, type-checking, and related build steps have been removed from the backend.**
-
-This context document is the central knowledge store for the project. It acts as a living brief, spec sheet, setup guide, and roadmap. Update this document with any new changes, details, or decisions reflected by new or modified files and folder structure so that it can be standardized and used team-wide.
+This file is the canonical, living knowledge base for the project. It consolidates: vision, domain decisions, architecture, data contracts, ops, and per-file responsibilities so anyone can ramp up fast. Always update this document (instead of creating ad‑hoc notes) when behavior, structure, or decisions change.
 
 ## 📝 User Story
 
@@ -33,20 +24,29 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 
 
 ### Core Domain: Bias Analysis Engine (MVP)
-- **Frontend State Management:**
-  - All application state and logic (input, fetching, error/result state, subreddit navigation) is managed at the root in `frontend/src/app/page.tsx`.
-  - All other pages/components (e.g., `/reddit/r/[subreddit]`) are stateless/presentational and receive their data via props or navigation.
-  - This ensures a single source of truth and enables seamless navigation and SSR/CSR compatibility.
-- **BiasAnalyzer**: Simple orchestrator in JavaScript that combines signals
-- **Signal**: For MVP, only MBFCSignal is implemented (no interfaces or types)
-- **BiasScore**: Simple number (0-10) with optional label
-- **AnalysisResult**: Plain JS object with signal breakdown
+
+* **Frontend State Management:**
+
+  * All application state and logic (input, fetching, error/result state, subreddit navigation) is managed at the root in `frontend/src/app/page.tsx`.
+  * All other pages/components (e.g., `/reddit/r/[subreddit]`) are stateless/presentational and receive their data via props or navigation.
+  * This ensures a single source of truth and enables seamless navigation and SSR/CSR compatibility.
+* **BiasAnalyzer**: Simple orchestrator in JavaScript that combines signals
+* **Signal**: For MVP, only MBFCSignal is implemented (no interfaces or types)
+* **BiasScore**: Simple number (0-10) with optional label
+* **AnalysisResult**: Plain JS object with signal breakdown
 
 ### Signal Implementations (MVP)
+
 1. **MBFCSignal**: Media source bias detection
-   - Extracts URLs from subreddit posts
-   - Looks up MBFC bias ratings from JSON/DB
-   - Aggregates bias scores
+
+   * Extracts URLs from subreddit posts
+   * Looks up MBFC bias ratings from JSON/DB
+   * Aggregates bias scores
+   * **Temporary Handling of "Questionable" Sources (Important)**:
+
+     * During testing, a manual review of MBFC "Questionable" entries showed that the overwhelming majority (≈88%) are right-leaning or extreme-right, with a smaller portion categorized as Least Biased, and almost none leaning left.
+     * For MVP purposes, we therefore treat `bias = Questionable` as **generally right-leaning** when scoring subreddit bias, while making it clear to users via a disclaimer.
+     * Disclaimer text to show in UI: *“For MVP scoring, Questionable sources are treated as generally right-leaning. This is based on a sample showing \~88% right-leaning/questionable outlets. Future versions will separate credibility from political direction for greater nuance.”*
 
 *All other signals and adapters are deferred until after MVP.*
 
@@ -87,7 +87,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 ---
 
 
-## 📂 Current Project Structure
+## 📂 Current Project Structure (High-Level)
 ## 🗂️ Reference: 20 Popular Subreddits and Post Types
 
 | Subreddit Name         | URL                                         | Dominant Post Types         | Topic/Notes                        |
@@ -159,72 +159,187 @@ For MVP, we will use the following post types (with only one Reddit Image Post t
 socialmediabias/
 ### 📁 Project Folder Structure (as of August 2025)
 ```
-socialmediabias/
-├── frontend/
-│   ├── .gitignore
-│   ├── Dockerfile
-│   ├── eslint.config.mjs
-│   ├── next-env.d.ts
-│   ├── next.config.ts
-│   ├── package-lock.json.backup
-│   ├── package.json
-│   ├── postcss.config.mjs
-│   ├── README.md
-│   ├── tsconfig.json
-│   ├── .next/
-│   ├── public/
-│   │   ├── file.svg
-│   │   ├── globe.svg
-│   │   ├── next.svg
-│   │   ├── vercel.svg
-│   │   └── window.svg
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── favicon.ico
-│   │   │   ├── globals.css
-│   │   │   ├── layout.tsx
-│   │   │   ├── not-found.tsx
-│   │   │   ├── page.tsx
-│   │   │   └── reddit/
-│   │   │       └── r/
-│   │   │           └── [subreddit]/
-│   │   │               └── page.tsx
-│   │   ├── components/
-│   │   │   ├── Header.tsx
-│   │   │   ├── Menu.tsx
-│   │   │   └── SubredditResults.tsx
-│   │   ├── context/
-│   │   │   └── AnalysisContext.tsx
-│   │   └── lib/
-│   │       └── popularSubreddits.js
-│   └── ... # Build, config, and cache files
-├── backend/
-│   ├── Dockerfile
-│   ├── index.js
-│   ├── package.json
-│   └── app/
-│       ├── index.js
-│       ├── mbfc-signal.js
-│       └── signal/
-│           ├── image.js
-│           ├── mbfc.js
-│           ├── reddit-discussion.js
-│           ├── reddit-image.js
-│           ├── reddit-link.js
-│           ├── reddit-text.js
-│           └── ...
-├── database/
-│   ├── init.sql
-│   └── mbfc-current.json
-├── nginx/
-│   └── nginx.conf
-├── docker-compose.yml
-├── mbfc-dataset-2025-08-05.json
-├── .gitignore
-├── README.md
-├── Makefile
-└── prompt.md
+frontend/                # Next.js 15 app (App Router). UI, API routes, state orchestration.
+backend/                 # Express.js lightweight API service (MBFC signal + Reddit fetch)
+database/                # DB seed/init artifacts (SQL + MBFC JSON snapshot)
+nginx/                   # Reverse proxy configuration
+docker-compose.yml       # Orchestrates frontend, backend, MySQL
+Makefile                 # (Planned) automation targets
+context.md               # This document (single source of truth)
+README.md                # Public quickstart (shorter than context.md)
+env.example              # Example environment variables
+mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ```
+
+### 🔎 File-by-File Responsibilities (Authoritative Inventory)
+
+#### Root Level
+- `docker-compose.yml` – Spins up services: `frontend` (Next.js), `backend` (Express), `mysql`. Wires env vars, mounts the DB seed volume.
+- `Makefile` – Placeholder. Planned targets: build, deploy, db export/import, logs, clean, nginx reload.
+- `context.md` – Canonical project knowledge (architecture + decisions). Update whenever adding/modifying behavior.
+- `README.md` – External-facing concise overview & quickstart. Should not duplicate deep architecture detail.
+- `env.example` – Template for `.env` (copy then customize). Keep keys alphabetized and documented inline where possible.
+- `mbfc-dataset-2025-08-05.json` – Source MBFC dataset dump used for initial DB population.
+- `.gitignore` – Ignores build artifacts, local env files, dependency folders.
+- `prompt.md` – (If present) May contain AI prompt / experimentation text (not production logic).
+
+#### `backend/`
+- `backend/Dockerfile` – Multi-stage (expected) container build for production deployment of the API.
+- `backend/package.json` – Declares Express + mysql2 + node-fetch dependencies, scripts (start, dev).
+- `backend/index.js` – Bootstrapping entry (currently logs a startup message). Could in future delegate to `app/index.js`.
+- `backend/app/index.js` – Main Express server: CORS config, health endpoint, `/api/analyze` POST route (fetches subreddit posts via Reddit OAuth, enriches with MBFC lookup), response assembly.
+- `backend/app/mbfc-signal.js` – Implements `getMBFCBiasForUrls(urls, dbConfig)` performing domain normalization and flexible suffix matching against `mbfc_sources` table.
+- `backend/app/signal/*` – Placeholder/future specialization modules (`reddit-link.js`, `reddit-text.js`, etc.) for planned multi-signal architecture (currently unused or skeletal).
+
+##### Backend Runtime Data Flow
+1. Client sends subreddit URL to `/api/analyze`.
+2. Backend obtains OAuth token, fetches top posts.
+3. Extracts outbound URLs → passes to `getMBFCBiasForUrls`.
+4. Builds `AnalysisResult` structure (MBFC bias breakdown + raw posts) -> returns JSON consumed by frontend.
+
+#### `database/`
+- `init.sql` – MySQL initialization (schema + table creation + potential seed load). Ensure idempotency for repeated container starts.
+- `mbfc-current.json` – (Working snapshot) MBFC transformed dataset suitable for ingestion; may differ from raw dataset naming.
+
+#### `nginx/`
+- `nginx.conf` – Reverse proxy definitions for production (ports → internal services). Handles routing `/api` to backend, root path to frontend.
+
+#### `frontend/`
+- `frontend/Dockerfile` – Multi-stage image for Next.js build (Turbopack) and production server (served on port 80 inside container).
+- `frontend/package.json` – Declares Next.js 15, HeroUI, Tailwind, build scripts.
+- `frontend/postcss.config.mjs` – Tailwind + PostCSS configuration.
+- `frontend/tailwind.config.js` – Design tokens, scanning paths for utility generation.
+- `frontend/tsconfig.json` – TypeScript project config (paths, strictness, module resolution).
+- `frontend/eslint.config.mjs` – Linting rules (React/Next + TypeScript + custom overrides).
+- `frontend/hero.ts` – Likely HeroUI provider/theme config (global styling injection) (verify when editing).
+- `frontend/public/*` – Static assets (icons, SVG, fonts).
+- `.next/` – Build & cache output (never manually edit; ignored by VCS except when cached in container context).
+
+##### Frontend App Router (`src/app/`)
+- `layout.tsx` – Global shell (fonts, providers, metadata).
+- `globals.css` – Tailwind layers + custom global styles.
+- `page.tsx` – Root landing page; hosts analysis input + triggers fetch.
+- `not-found.tsx` – 404 boundary.
+- `reddit/r/[subreddit]/page.tsx` – Dynamic route for direct deep-link to a subreddit analysis (consumes shared state or triggers fetch-by-param).
+
+##### Frontend API Routes (`src/app/api/`)
+- `og-image/route.ts` – Fetches target URL HTML, extracts `<meta property="og:image" ...>` and returns `ogImage` (used for link previews in cards).
+- `reddit-comment/route.ts` – Given a Reddit comment permalink, fetches `<permalink>.json` from Reddit and returns raw JSON inside `{ body }`.
+
+##### React Context & State
+- `context/AnalysisContext.tsx` – Central client-side state store (community name, loading, results, errors) to avoid prop drilling and support multi-route navigation.
+- `context/HeroUIProvider.tsx` (if present) – Wraps application with HeroUI theme config.
+
+##### Components
+- `components/Header.tsx` – Top navigation / branding.
+- `components/Menu.tsx` – Likely quick links / navigation actions (verify when modified).
+- `components/SubredditResults.tsx` – Orchestrates display of aggregated `AnalysisResult`: filters, bias score summary, MBFC + Reddit merged listing, dynamic OG image fetch, comment on-demand loading, and new source URL Select filter.
+- `components/RedditSignalCard.tsx` – Presentational card for a merged `RedditSignal` (MBFC detail + Reddit post) with lazy comment fetch button.
+- `components/RedditPostsSection.tsx` – (If present) Displays raw Reddit posts separate from MBFC detail list.
+
+##### Lib & Utilities
+- `lib/types.ts` – TypeScript domain model: `BiasScore`, `SignalResult`, `MBFCDetail`, `RedditSignal`, `AnalysisResult` + full Reddit API type declarations.
+- `lib/utils.ts` – Utility helpers: default object seeds, style mappers (`getBiasColor`, `getConfidenceColor`), media URL detectors.
+- `lib/popularSubreddits.js` – Static list used for UI selection/autocomplete.
+
+### 🔄 Data Contracts
+The backend returns an object conforming loosely to `AnalysisResult`:
+```ts
+interface AnalysisResult {
+  subreddit?: string;            // (backend) also mapped to communityName client-side
+  communityName?: string;        // (frontend merged)
+  platform?: 'reddit';
+  overallScore?: { score: number; label: string; confidence: number };
+  biasBreakdown?: Record<string, number>; // counts per bias category
+  details?: MBFCDetail[];        // enriched MBFC rows
+  redditPosts?: RedditPost[];    // raw Reddit posts (subset of fields)
+  totalPosts?: number;
+  urlsChecked?: number;
+  message?: string;              // fallback / informational
+  analysisDate?: string;         // ISO timestamp
+  signalResults?: SignalResult[];// optional future multi-signal array
+}
+```
+
+### 🧪 Comment Fetching Flow (On Demand)
+1. User clicks "Load Comment" on a `RedditSignalCard` with a comment-type permalink.
+2. Component calls `/api/reddit-comment?permalink=...`.
+3. API route fetches raw Reddit JSON listing for the thread and returns it inside `{ body }`.
+4. Stored in `commentBodies[permalink]` (null = loading, '' = error, string/object = loaded; currently raw JSON object — refine later to text extraction).
+
+### 🖼️ OG Image Fetch Flow
+1. `SubredditResults` collects non-image, non-gallery URLs.
+2. For each, calls `/api/og-image?url=<encoded>`.
+3. Route fetches remote HTML, extracts `og:image`, caches result in component state.
+
+### 🎯 Filtering Logic Summary
+Filters are additive AND conditions across: Bias, Credibility, Factual Reporting, Country, Media Type, Source URL. Each filter updates state; derived `filteredDetails` recomputed with `useMemo` to avoid expensive per-render recalculation.
+
+### 📊 Bias Interpretation (Interim Rule)
+`Questionable` sources are tentatively bucketed as right-leaning for scoring heuristics (explicit disclaimer in UI planned). This is a temporary heuristic pending introduction of an orthogonal Credibility axis.
+
+## 🧱 Architectural Principles
+- Keep backend thin: fetch + minimal transform + DB lookup.
+- Push presentational and aggregation logic to the frontend for rapid iteration.
+- Avoid premature abstraction (single plain-object domain interfaces; no generics / inheritance yet).
+- Each new signal should: (1) produce a `SignalResult`, (2) register into an aggregation function, (3) remain independently testable.
+
+## 🧭 Open Technical Debt / TODO Tracking
+- [ ] Implement actual scoring algorithm (currently static `5.0 center`).
+- [ ] Add caching layer for MBFC domain lookups (in-memory LFU/LRU or Redis later).
+- [ ] Extract Reddit API logic into service module with retry & rate-limit awareness.
+- [ ] Normalize & store Reddit posts + MBFC results server-side for historical trending.
+- [ ] Add unit tests (Jest) for `mbfc-signal` domain matching logic.
+- [ ] Migrate comment JSON shape -> extracted top-level root comment body text.
+- [ ] Introduce credential rotation/secrets manager for production.
+- [ ] Implement Makefile automation targets listed below.
+- [ ] Add structured logging (pino) with log levels and request IDs.
+- [ ] Add graceful shutdown (SIGTERM) for backend DB connection pools.
+- [ ] UI accessibility & dark/light theme toggle.
+
+## 🔐 Security / Privacy Considerations
+- Do not log full access tokens (currently safe; ensure masking if added).
+- Rate limiting / abuse prevention not yet implemented (future: NGINX + token bucket middleware).
+- CORS whitelist explicitly enumerated; review before production wide exposure.
+- No PII handled; continue to avoid storing user identifiers.
+
+## 📦 Deployment Flow (Current Manual)
+1. Update code & push to repo.
+2. SSH into VPS → pull changes.
+3. Rebuild: `docker compose up -d --build`.
+4. Verify containers healthy; inspect logs for errors.
+5. (Future) Automate with GitHub Actions + remote deploy key + health check gate.
+
+## 🧰 Observability (Planned)
+- Metrics: request counts, MBFC cache hit ratio.
+- Tracing: add OpenTelemetry shim once multi-signal complexity increases.
+- Error tracking: Sentry or Open Source alternative.
+
+## 📚 Glossary
+- **Signal**: A bounded analytic source (MBFC link analysis, comments sentiment, image fact-check, etc.).
+- **RedditSignal**: Merged view of MBFC detail & Reddit post via shared URL.
+- **Bias Score**: Normalized 0–10 axis representing left/right lean.
+- **Confidence**: Heuristic probability (0–1) of correctness based on signal density & agreement.
+
+## 🧪 Quick Validation Checklist (Developer)
+- Run frontend dev: `npm run dev` (inside `frontend/`).
+- Trigger analyze for a subreddit and inspect network tab: `/api/analyze` → structure matches `AnalysisResult`.
+- Click "Load Comment" → network call to `/api/reddit-comment` returns JSON.
+- Hover over filtered cards: ensure filters reduce card count logically.
+- OG image loads only for non-image URLs.
+
+## 🗺️ Future Evolution Outline
+| Dimension | Near Term | Mid Term | Long Term |
+|-----------|-----------|----------|-----------|
+| Signals | MBFC | Reddit Comments | Images / Video / Cross-platform |
+| Storage | Ephemeral | Persist MBFC lookups | Historical trend DB + analytics |
+| Scoring | Static heuristic | Weighted multi-signal | ML calibration + feedback loop |
+| Infra | Single VPS | Container health monitoring | Multi-region + CDN |
+| Auth | None | API key for backend | User accounts / personalization |
+
+---
+Document updated: 2025-08-26
+Maintainer: (update with your name/contact)
 
 ---
 
@@ -351,27 +466,167 @@ sudo systemctl reload nginx
 ---
 
 
-## 🏗️ Domain Implementation Roadmap (August 2025)
+## 🏗️ Domain Implementation Roadmap (Updated August 2025)
 
-### Phase 1: Core MVP (Current)
+This roadmap merges earlier phase planning with the "Future Evolution Outline" dimensions (Signals, Storage, Scoring, Infra, Auth) and reflects recently completed frontend enhancements (lazy comments, source URL filter, component extraction) and documentation upgrades.
+
+Legend: [x] done · [~] in progress / partial · [ ] not started · (Δ) newly added
+
+### Phase 1: Core MVP (COMPLETED / HARDENING)
+Core objective: End‑to‑end MBFC-based subreddit bias surfacing with expandable architecture.
+
+Build & Infra
 - [x] Project structure with Docker Compose
-- [x] Frontend: Next.js 15.4.5 + TypeScript + TailwindCSS v4
-- [x] Backend: Express.js in plain JavaScript (no TypeScript, no TypeORM), all code in `/app/`
-- [x] Multi-stage Docker builds for both services
-- [x] MySQL service with volume persistence
-- [x] Environment variable configuration
-- [x] MBFC dataset (3.1MB JSON file)
-- [x] TypeORM and all ORM code removed; backend uses direct MySQL queries via `mysql2`
-- [ ] **MBFCSignal**: URL extraction and MBFC database integration (MVP bias detection, in `/app/mbfc-signal.js`)
-- [ ] **Basic Frontend**: Social media input form and bias display
+- [x] Multi-stage Docker builds (frontend & backend)
+- [x] MySQL service + volume persistence
+- [x] Environment variable configuration (`env.example`)
+- [x] NGINX reverse proxy config drafted
 
-### Phase 2: Post-MVP Expansion
-- [ ] **RedditCommentSignal**: Reddit API integration + DeepSeek analysis
-- [ ] **AI Pipeline**: DeepSeek → OpenAI → HuggingFace fallback
-- [ ] **Signal Aggregation**: Weighted combination of MBFC + Comment signals
-- [ ] **Instagram/X/Image Signals**: Future platform and metric expansion
-- [ ] **Advanced Metrics**: Credibility, Demographics, Authoritarian/Libertarian
-- [ ] **NGINX/Makefile/Docs/Performance**: Production and scale improvements
+Backend
+- [x] Express.js API (plain JS, no TypeORM) in `backend/app/index.js`
+- [x] Removed TypeORM + ORM artifacts (direct `mysql2` queries)
+- [x] MBFC dataset ingestion path (JSON -> MySQL via init SQL/manual ingest)
+- [x] MBFC domain lookup (`mbfc-signal.js`) with flexible domain matching
+- [~] Basic domain normalization heuristics (needs edge case hardening)
+
+Frontend
+- [x] Next.js 15 + TypeScript + TailwindCSS v4 scaffold
+- [x] Analysis flow (input -> request -> results display)
+- [x] Bias breakdown visualization (counts per bias label)
+- [x] OG Image fetch route + per-link lazy image meta extraction
+- [x] Lazy comment loading (on-demand fetch via `/api/reddit-comment`)
+- [x] `RedditSignalCard` component extraction (maintainability)
+- [x] Source URL filter (HeroUI Select with counts)
+- [x] Multi-filter system (Bias, Credibility, Factual, Country, Media Type, Source URL)
+- [x] File inventory & architecture documentation (`context.md` expanded)
+- [~] Disclaimer surfacing for Questionable sources (logic present, UI text pending)
+
+Scoring & Signals
+- [x] Initial MBFCSignal integration (URL extraction + lookup)
+- [~] Interim static overallScore placeholder (needs dynamic weighting)
+- [ ] (Δ) Formal scoring function with pluggable weighting per signal
+
+DX / Docs
+- [x] Centralized living architecture doc (this file)
+ - [x] (Δ) Makefile automation targets implemented (see Makefile Automation Summary)
+- [ ] (Δ) Add Jest test harness (unit tests for domain matching)
+
+Security / Ops
+- [ ] (Δ) Structured logging (pino) + request correlation
+- [ ] (Δ) Graceful shutdown for DB pool
+
+### Phase 2: Signal Expansion & Foundational Intelligence (NEXT FOCUS)
+Signals
+- [ ] RedditCommentSignal (thread sentiment + political leaning via AI)
+- [ ] (Δ) Comment body extraction/cleaning (current raw JSON -> text) feeding sentiment model
+- [ ] (Δ) Basic sentiment + political entity extraction pipeline
+ - [ ] (Δ) Exclusive Comment Browsing UI (single expanded comment thread at a time)
+ - [ ] (Δ) Comment metadata inspection panel (author flair, awards, score trajectory)
+ - [ ] (Δ) Global openCommentPermalink state + auto-collapse others
+
+AI / NLP Pipeline
+- [ ] DeepSeek → OpenAI → HuggingFace fallback strategy abstraction
+- [ ] Prompt templates versioned & parameterized
+- [ ] (Δ) Caching of AI responses (content hash -> response)
+
+Scoring & Aggregation
+- [ ] Replace static overallScore with weighted combination (MBFC vs Comments)
+- [ ] Confidence metric derived from signal agreement & volume
+
+Frontend Enhancements
+- [ ] UI disclaimer component (Questionable heuristic transparency)
+- [ ] (Δ) Comment sentiment badges inline on cards
+- [ ] (Δ) Loading skeletons for OG images & comments
+ - [ ] (Δ) Collapse-others logic wired to exclusive comment browsing
+ - [ ] (Δ) Dev-only raw comment JSON viewer toggle
+
+Storage
+- [ ] Persist MBFC lookup results (avoid re-querying same domain per day)
+- [ ] (Δ) Table for cached AI analyses keyed by permalink/hash
+ - [ ] (Δ) Lightweight local cache layer for per-session comment metadata parsing
+
+Infra / DevEx
+- [ ] Implement Makefile targets (deploy, db-export/import, logs, prune)
+- [ ] (Δ) GitHub Actions CI (lint + minimal tests)
+- [ ] (Δ) Basic rate limiting (middleware + NGINX burst config)
+
+### Phase 3: Multi-Platform & Advanced Metrics
+Signals
+- [ ] ImageSignal (OCR + meme / manipulation heuristics)
+- [ ] (Δ) Cross-platform link correlation (shared URL graph)
+- [ ] (Δ) Emerging Platform placeholders (Instagram, X) interface contracts
+
+Advanced Metrics
+- [ ] Credibility metric decoupled from left/right axis
+- [ ] Authoritarian vs Libertarian dimension (political compass extension)
+- [ ] (Δ) Economic Left/Right dimension
+- [ ] Source volume weighting normalization (avoid dominance by prolific domains)
+
+Storage & Analytics
+- [ ] Historical trend persistence (daily rollups per community)
+- [ ] (Δ) Aggregated bias volatility metric
+- [ ] (Δ) Materialized views for dashboard queries
+
+Scoring Evolution
+- [ ] Adaptive weight tuning (grid search or Bayesian optimization on labeled set)
+- [ ] (Δ) User feedback loop (crowd-sourced validation / corrections)
+
+Infra / Observability
+- [ ] Structured logging + log shipping
+- [ ] Metrics: bias computation latency, cache hit ratio, API error rates
+- [ ] (Δ) OpenTelemetry tracing (span around each signal pipeline)
+
+Auth / Access
+- [ ] API key gating for backend endpoints
+- [ ] (Δ) Session-less signed request tokens for limited public demo
+- [ ] (Δ) Role-based feature flags (admin vs public)
+
+### Phase 4: Production Hardening & Scale
+- [ ] Horizontal scaling (container replicas + load balancing)
+- [ ] Read replica / caching layer (Redis) for hot domain + comment lookups
+- [ ] CDN for static + OG images
+- [ ] (Δ) Auto backfill jobs (scheduled re-analysis of watched communities)
+- [ ] (Δ) Incident playbooks & SLO definitions
+
+### Phase 5: Intelligence & Feedback Loops
+- [ ] Active learning loop (flag low-confidence outputs for review)
+- [ ] Model retraining dataset assembly pipeline
+- [ ] (Δ) Anomaly detection (sudden bias swings alerting)
+- [ ] (Δ) User-driven corrections UI feeding ground truth store
+
+### Cross-Cutting (Ongoing)
+- [~] Accessibility & theme support (dark/light partially scaffolded via Tailwind)
+- [ ] Performance budget (bundle size, LCP targets) & monitoring
+- [ ] Security hardening (dependency scanning, secret rotation)
+- [ ] Documentation freshness audits (quarterly)
+
+### Makefile Automation Summary
+Target | Purpose
+-------|--------
+`dev` | Start all services with build
+`dev-logs` | Tail logs for all services
+`db-reset` | Recreate MySQL container & volume (fresh state)
+`db-fetch-mbfc` | Fetch refreshed MBFC dataset via backend script
+`db-load-mbfc` | Run migrations & seed MBFC data
+`db-setup` | Full DB reset + backend up + migrations + seed
+`db-update` | Fetch then load MBFC dataset (refresh path)
+`setup` | One-shot environment bring-up & seed
+`db-export` | Dump DB to backup.sql
+`db-import` | Restore DB from backup.sql
+`deploy-local` | Local rebuild & detached run
+`deploy-production` | Remote compose up (placeholder credentials)
+`nginx-test` | Validate NGINX configuration
+`nginx-reload` | Reload NGINX service
+`clean` | Down + prune volumes/images
+`health` | Basic service availability checks
+`mysql-shell` | Interactive MySQL shell w/ env creds
+`backend-reload` | Rebuild & restart backend only
+`help` | List make targets with descriptions
+
+Planned Additions:
+- `ci` (lint + typecheck + unit tests)
+- `analyze-bundle` (Next.js bundle analyzer run)
+- `perf-sample` (synthetic request load to /api/analyze)
 
 ---
 
