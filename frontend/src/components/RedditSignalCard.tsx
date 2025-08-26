@@ -7,10 +7,12 @@ import { Reddit } from '../lib/types';
 interface RedditSignalCardProps {
   d: RedditSignal;
   ogImages: { [url: string]: string | null };
-  commentBodies: { [permalink: string]: string | null };
-  setCommentBodies: React.Dispatch<React.SetStateAction<{ [permalink: string]: string | null }>>;
+  commentBodies: { [permalink: string]: any };
+  setCommentBodies: React.Dispatch<React.SetStateAction<{ [permalink: string]: any }>>;
   fetchRedditCommentBody: (permalink: string) => Promise<string | null>;
   isRedditCommentPermalink: (permalink: string) => boolean;
+  openCommentPermalink: string | null;
+  setOpenCommentPermalink: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
@@ -20,6 +22,8 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
   setCommentBodies,
   fetchRedditCommentBody,
   isRedditCommentPermalink,
+  openCommentPermalink,
+  setOpenCommentPermalink,
 }) => {
   // Local depth state for comment tree expansion (initial depth = 3)
   const [maxDepth, setMaxDepth] = useState<number>(3);
@@ -198,25 +202,42 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
                 <button
                   className="px-2 py-1 rounded bg-blue-700 text-white text-xs hover:bg-blue-600 transition border border-blue-900"
                   onClick={async () => {
+                    setOpenCommentPermalink(d.permalink!);
                     setCommentBodies(prev => ({ ...prev, [d.permalink!]: null }));
                     const body = await fetchRedditCommentBody(d.permalink!);
                     setCommentBodies(prev => ({ ...prev, [d.permalink!]: body }));
                   }}
                 >
-                  Load Comment
+                  Load Comments
                 </button>
               )}
-              {commentBodies[d.permalink] === null && (
+              {commentBodies[d.permalink] !== undefined && openCommentPermalink !== d.permalink && (
+                <button
+                  className="ml-2 px-2 py-1 rounded bg-neutral-700 text-white text-xs hover:bg-neutral-600 transition border border-neutral-500"
+                  onClick={() => setOpenCommentPermalink(d.permalink!)}
+                >
+                  Show
+                </button>
+              )}
+              {openCommentPermalink === d.permalink && (
+                <button
+                  className="ml-2 px-2 py-1 rounded bg-neutral-700 text-white text-xs hover:bg-neutral-600 transition border border-neutral-500"
+                  onClick={() => setOpenCommentPermalink(null)}
+                >
+                  Hide
+                </button>
+              )}
+              {commentBodies[d.permalink] === null && openCommentPermalink === d.permalink && (
                 <span className="italic text-gray-400">Loading comment...</span>
               )}
               {/* Raw string case (legacy) */}
-              {typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
+              {openCommentPermalink === d.permalink && typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
                 <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
                   <span>{commentBodies[d.permalink]}</span>
                 </div>
               )}
               {/* Structured comments case */}
-              {commentApiResponse && topLevelComments.length > 0 && (
+              {openCommentPermalink === d.permalink && commentApiResponse && topLevelComments.length > 0 && (
                 <div className="mt-2 bg-neutral-900/70 rounded p-2 border border-neutral-700 max-h-[600px] overflow-auto">
                   <div className="text-xs text-neutral-400 mb-1 flex justify-between items-center">
                     <span>Comments (levels shown: {maxDepth})</span>
@@ -230,9 +251,10 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
                   <div className="space-y-1">
                     {renderComments(topLevelComments, 0)}
                   </div>
+                  <RawJsonToggle raw={commentBodies[d.permalink]} />
                 </div>
               )}
-              {commentBodies[d.permalink] === '' && (
+              {openCommentPermalink === d.permalink && commentBodies[d.permalink] === '' && (
                 <span className="italic text-red-400">Could not load comment.</span>
               )}
             </div>
@@ -263,6 +285,26 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
       </div>
     )}
   </div>
+  );
+};
+
+// Dev-only raw JSON toggle component
+const RawJsonToggle: React.FC<{ raw: any }> = ({ raw }) => {
+  const [open, setOpen] = useState(false);
+  if (!raw || typeof raw !== 'object') return null;
+  return (
+    <div className="mt-3">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-600 text-2xs text-white"
+        type="button"
+      >{open ? 'Hide Raw JSON' : 'Show Raw JSON'}</button>
+      {open && (
+        <pre className="mt-2 max-h-72 overflow-auto text-[10px] leading-snug bg-black/60 p-2 rounded border border-neutral-700 whitespace-pre-wrap break-all">
+{JSON.stringify(raw, null, 2)}
+        </pre>
+      )}
+    </div>
   );
 };
 

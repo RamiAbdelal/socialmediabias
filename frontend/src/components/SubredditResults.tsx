@@ -150,7 +150,8 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
 }
 
   // --- REDDIT COMMENT STATE ---
-  const [commentBodies, setCommentBodies] = useState<{ [permalink: string]: string|null }>({});
+  const [commentBodies, setCommentBodies] = useState<{ [permalink: string]: any }>({});
+  const [openCommentPermalink, setOpenCommentPermalink] = useState<string | null>(null);
 
   // Remove auto-fetching of all comments. We'll fetch per-listing on demand.
 
@@ -353,6 +354,8 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
                       setCommentBodies={setCommentBodies}
                       fetchRedditCommentBody={fetchRedditCommentBody}
                       isRedditCommentPermalink={isRedditCommentPermalink}
+                      openCommentPermalink={openCommentPermalink}
+                      setOpenCommentPermalink={setOpenCommentPermalink}
                     />
                   ))}
                 </div>
