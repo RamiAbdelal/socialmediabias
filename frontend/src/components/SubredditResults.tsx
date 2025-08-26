@@ -150,19 +150,21 @@ async function fetchOgImage(url: string): Promise<string | null> {
   // Utility to check if a permalink is a Reddit comment URL
 function isRedditCommentPermalink(permalink: string) {
   // Reddit comment permalinks are like /r/sub/comments/postid/title/commentid/
+  // "/r/centrist/comments/1meje71/i_deeply_regret_my_vote_for_trump/"
   // They have at least 6 segments when split by '/'
   if (!permalink) return false;
   const parts = permalink.split('/').filter(Boolean);
-  return parts.length >= 6 && parts[0] === 'r' && parts[2] === 'comments';
+  return parts.length >= 4 && parts[0] === 'r' && parts[2] === 'comments';
 }
 
 // Utility to fetch a Reddit comment body from a permalink (calls backend API to avoid CORS)
 async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
   try {
     const res = await fetch(`/api/reddit-comment?permalink=${encodeURIComponent(permalink)}`);
+    console.log("Fetching Reddit Comment Body", permalink, res)
     if (!res.ok) return null;
     const data = await res.json();
-    return typeof data.body === 'string' ? data.body : null;
+    return data;
   } catch {
     return null;
   }
@@ -171,21 +173,13 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
   // --- REDDIT COMMENT STATE ---
   const [commentBodies, setCommentBodies] = useState<{ [permalink: string]: string|null }>({});
 
-  useEffect(() => {
-    // Find all unique permalinks that look like Reddit comment URLs and are not already fetched
-    const permalinksToFetch = allDetails
-      .map((d: RedditSignal) => d.permalink)
-      .filter((p: string | undefined): p is string => !!p && isRedditCommentPermalink(p) && !(p in commentBodies));
-    if (permalinksToFetch.length === 0) return;
-    permalinksToFetch.forEach(async (permalink: string) => {
-      setCommentBodies(prev => ({ ...prev, [permalink]: null })); // mark as loading
-      const body = await fetchRedditCommentBody(permalink);
-      setCommentBodies(prev => ({ ...prev, [permalink]: body }));
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allDetails]);
+  // Remove auto-fetching of all comments. We'll fetch per-listing on demand.
 
-  console.log("Comments?", commentBodies)
+
+  // Log commentBodies state whenever it changes
+  useEffect(() => {
+    console.log('Current commentBodies state:', commentBodies);
+  }, [commentBodies]);
 
   return (
     <div className="mb-8">
@@ -239,8 +233,8 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
           {/* Bias Breakdown & Filters in Accordion */}
           <CardBody className="px-6 py-0">
             {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
-              <Accordion defaultValue={["filters"]} className="w-full mb-4 overflow-y-hidden">
-                <AccordionItem value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full">
+              <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
+                <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full">
                   <div className="flex flex-row items-start flex-wrap">
                     {/* Bias Filters */}
                     <div className="mb-4 mr-4">
@@ -445,13 +439,31 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
                             >
                               Reddit Permalink
                             </a>
-                            {/* Show Reddit comment body if this is a comment permalink */}
+                            {/* Show Reddit comment body if this is a comment permalink, with on-demand loading */}
                             {isRedditCommentPermalink(d.permalink) && (
-                              <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
-                                {commentBodies && commentBodies[d.permalink] === undefined && <span className="italic text-gray-400">Loading comment...</span>}
-                                {commentBodies && commentBodies[d.permalink] === null && <span className="italic text-red-400">Could not load comment.</span>}
-                                {commentBodies && typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
-                                  <span>{commentBodies[d.permalink]}</span>
+                              <div className="mt-1">
+                                {commentBodies[d.permalink] === undefined && (
+                                  <button
+                                    className="px-2 py-1 rounded bg-blue-700 text-white text-xs hover:bg-blue-600 transition border border-blue-900"
+                                    onClick={async () => {
+                                      setCommentBodies(prev => ({ ...prev, [d.permalink!]: null }));
+                                      const body = await fetchRedditCommentBody(d.permalink!);
+                                      setCommentBodies(prev => ({ ...prev, [d.permalink!]: body }));
+                                    }}
+                                  >
+                                    Load Comment
+                                  </button>
+                                )}
+                                {commentBodies[d.permalink] === null && (
+                                  <span className="italic text-gray-400">Loading comment...</span>
+                                )}
+                                {typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
+                                  <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
+                                    <span>{commentBodies[d.permalink]}</span>
+                                  </div>
+                                )}
+                                {commentBodies[d.permalink] === '' && (
+                                  <span className="italic text-red-400">Could not load comment.</span>
                                 )}
                               </div>
                             )}

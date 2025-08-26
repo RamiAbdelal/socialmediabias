@@ -7,10 +7,10 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!res.ok) return null;
     const data = await res.json();
-    // The comment is usually in data[1].data.children[0].data.body
-    const comment = data?.[1]?.data?.children?.[0]?.data?.body;
-    return typeof comment === 'string' ? comment : null;
+    console.info("Fetched Reddit comments:", data);
+    return data;
   } catch {
+    console.info("Error fetching Reddit comments");
     return null;
   }
 }
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
   const body = await fetchRedditCommentBody(permalink);
   if (body === null) {
-    return NextResponse.json({ body: null }, { status: 200 });
+    return NextResponse.json({ body: null }, { status: 500 });
   }
   return NextResponse.json({ body }, { status: 200 });
 }

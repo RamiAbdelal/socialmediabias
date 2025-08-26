@@ -17,8 +17,6 @@ const mozillaHeadline = localFont({
   src: "../../public/MozillaHeadline-VariableFont_wdth,wght.ttf"
 });
 
-console.log("Using MozillaHeadline font:", mozillaHeadline);
-
 export const metadata: Metadata = {
   title: "Social Media Bias Analyzer",
   description: "Political bias detection for subreddits",
