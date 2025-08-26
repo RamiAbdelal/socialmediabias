@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
   try {
     const url = `https://www.reddit.com${permalink}.json`;
+    console.log(`Comment fetching for ${url}`);
     const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!res.ok) return null;
     const data = await res.json();

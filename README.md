@@ -91,7 +91,6 @@ For full schema & evolution roadmap, consult `context.md`.
 - Stores raw JSON in state keyed by permalink (null=loading, ''=error, object=loaded)
 - Planned: exclusive open thread (auto-collapse others), extracted structured metadata panel, sentiment summarization.
 
-socialmediabias/
 ## 📁 Project Structure (Concise)
 
 ```

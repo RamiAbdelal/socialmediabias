@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Image } from '@heroui/react';
 import { isImageUrl, isGalleryUrl } from '../lib/utils';
 import type { RedditSignal } from '../lib/types';
+import { Reddit } from '../lib/types';
 
 interface RedditSignalCardProps {
   d: RedditSignal;
@@ -19,7 +20,89 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
   setCommentBodies,
   fetchRedditCommentBody,
   isRedditCommentPermalink,
-}) => (
+}) => {
+  // Local depth state for comment tree expansion (initial depth = 3)
+  const [maxDepth, setMaxDepth] = useState<number>(3);
+
+  // Attempt to extract a Reddit APIResponse from stored commentBodies for this permalink
+  const commentApiResponse: Reddit.APIResponse | null = useMemo(() => {
+    if (!d.permalink) return null;
+    const raw = commentBodies[d.permalink];
+    if (raw && typeof raw === 'object' && 'body' in (raw as any)) {
+      const body = (raw as any).body;
+      if (Array.isArray(body) && body.length === 2) {
+        return body as Reddit.APIResponse; // [PostListing, CommentListing]
+      }
+    }
+    return null;
+  }, [commentBodies, d.permalink]);
+
+  // Extract top-level comments listing
+  const topLevelComments: Reddit.Comment[] = useMemo(() => {
+    if (!commentApiResponse) return [];
+    const commentListing = commentApiResponse[1];
+    if (commentListing?.data?.children) {
+      // Filter only t1 comment kinds
+      return commentListing.data.children.filter((c: any) => c.kind === 't1') as Reddit.Comment[];
+    }
+    return [];
+  }, [commentApiResponse]);
+
+  // Recursive renderer
+  const renderComments = (comments: Reddit.Comment[], depth: number): React.ReactNode => {
+    if (!comments || comments.length === 0) return null;
+    return comments.map((c) => {
+      const data = c.data;
+      const hasReplies = data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.length > 0;
+      const repliesListing = hasReplies ? (data.replies as Reddit.Listing<Reddit.Comment>).data.children.filter((r: any) => r.kind === 't1') as Reddit.Comment[] : [];
+      const showReplies = depth + 1 < maxDepth; // we will render deeper replies if within depth budget (depth starts at 0 for top-level)
+      return (
+        <div key={data.id} className="mt-2">
+          <div className="pl-2 border-l border-neutral-600">
+            <div className="text-xs text-blue-200 font-semibold flex flex-wrap gap-2">
+              <span>@{data.author}</span>
+              <span className="text-neutral-400">▲{data.ups}</span>
+              {data.distinguished && <span className="text-amber-400">{data.distinguished}</span>}
+              {data.is_submitter && <span className="text-emerald-400">OP</span>}
+            </div>
+            <div className="text-sm text-neutral-100 whitespace-pre-wrap break-words">
+              {data.body}
+            </div>
+            {hasReplies && showReplies && (
+              <div className="mt-1 ml-2">
+                {renderComments(repliesListing, depth + 1)}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    });
+  };
+
+  // Determine if deeper replies exist beyond current maxDepth to show expansion button
+  const deeperAvailable = useMemo(() => {
+    if (!commentApiResponse) return false;
+    // BFS up to maxDepth, if any node at depth === maxDepth - 1 has replies we can go deeper
+    const queue: { node: Reddit.Comment; depth: number }[] = topLevelComments.map(c => ({ node: c, depth: 0 }));
+    while (queue.length) {
+      const { node, depth } = queue.shift()!;
+      if (depth >= maxDepth - 1) {
+        const data = node.data;
+        if (data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.some((ch: any) => ch.kind === 't1')) {
+          return true;
+        }
+        continue;
+      }
+      const data = node.data;
+      if (data.replies && typeof data.replies === 'object') {
+        const kids = (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.filter((ch: any) => ch.kind === 't1') || [];
+        kids.forEach(k => queue.push({ node: k, depth: depth + 1 }));
+      }
+    }
+    return false;
+  }, [commentApiResponse, topLevelComments, maxDepth]);
+
+  return (
   <div className="bg-neutral-800 rounded-xl p-4 flex flex-col shadow-md">
     <div className="flex flex-col items-start mb-2">
       {/* Bias Label or Reddit Title */}
@@ -126,9 +209,27 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
               {commentBodies[d.permalink] === null && (
                 <span className="italic text-gray-400">Loading comment...</span>
               )}
+              {/* Raw string case (legacy) */}
               {typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
                 <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
                   <span>{commentBodies[d.permalink]}</span>
+                </div>
+              )}
+              {/* Structured comments case */}
+              {commentApiResponse && topLevelComments.length > 0 && (
+                <div className="mt-2 bg-neutral-900/70 rounded p-2 border border-neutral-700 max-h-[600px] overflow-auto">
+                  <div className="text-xs text-neutral-400 mb-1 flex justify-between items-center">
+                    <span>Comments (levels shown: {maxDepth})</span>
+                    {deeperAvailable && (
+                      <button
+                        onClick={() => setMaxDepth(md => md + 1)}
+                        className="px-2 py-0.5 rounded bg-neutral-700 hover:bg-neutral-600 text-white text-2xs border border-neutral-500"
+                      >+ depth</button>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {renderComments(topLevelComments, 0)}
+                  </div>
                 </div>
               )}
               {commentBodies[d.permalink] === '' && (
@@ -162,6 +263,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
       </div>
     )}
   </div>
-);
+  );
+};
 
 export default RedditSignalCard;
