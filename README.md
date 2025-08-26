@@ -25,6 +25,7 @@ docker-compose up --build
 # Development workflow
 ## Frontend (Next.js)
 To develop the frontend (hot reload, port 3000):
+```
 
 ```bash
 cd frontend
@@ -43,7 +44,6 @@ The backend runs on [http://localhost:9006](http://localhost:9006) (via Docker C
 
 ## Production
 Production builds run the frontend on port 9005 (http://localhost:9005) and the backend on port 9006.
-```
 
 ## 🏗️ Architecture (Current vs Planned)
 
