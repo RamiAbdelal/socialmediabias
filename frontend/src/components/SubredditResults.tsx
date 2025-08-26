@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem } from '@heroui/react';
+import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem, Select, SelectItem } from '@heroui/react';
 import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
 import  RedditPostsSection from './RedditPostsSection';
@@ -17,6 +17,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
   const [factFilter, setFactFilter] = useState<string|null>(null);
   const [countryFilter, setCountryFilter] = useState<string|null>(null);
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string|null>(null);
+  const [sourceUrlFilter, setSourceUrlFilter] = useState<string|null>(null);
 
   // --- FILTER LOGIC ---
   // Combine MBFCDetail[] and RedditPost[] on the 'url' attribute, deduplicated, using defaultRedditSignal for clean merging
@@ -53,9 +54,11 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
       if (factFilter && d.factual_reporting !== factFilter) return false;
       if (countryFilter && d.country !== countryFilter) return false;
       if (mediaTypeFilter && d.media_type !== mediaTypeFilter) return false;
+      if (sourceUrlFilter && d.source_url !== sourceUrlFilter) return false;
       return true;
     });
-  }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter]);
+  }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter, sourceUrlFilter]);
+
 
   console.log("filteredDetails", filteredDetails);  
 
@@ -65,6 +68,14 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
   const factOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.factual_reporting).filter((v): v is string => typeof v === 'string'))), [allDetails]);
   const countryOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.country).filter((v): v is string => typeof v === 'string'))), [allDetails]);
   const mediaTypeOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.media_type).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const sourceUrlOptions = useMemo(() => {
+    const urls = Array.from(new Set(allDetails.map(d => d.source_url).filter((v): v is string => typeof v === 'string' && v !== '')));
+    return urls.map(url => ({
+      key: url,
+      label: url,
+      count: allDetails.filter(d => d.source_url === url).length
+    }));
+  }, [allDetails]);
 
   // --- FILTER BUTTON COMPONENT ---
   const FilterButton = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
@@ -204,6 +215,31 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
               <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
                 <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full">
                   <div className="flex flex-row items-start flex-wrap">
+                    {/* Source URL Filter */}
+                    <div className="mb-4 mr-4 min-w-[300px]">
+                      <div className="font-semibold text-sm mb-2">Source URL</div>
+                      <Select
+                        items={sourceUrlOptions}
+                        showScrollIndicators={true}
+                        placeholder="Select Source URL"
+                        selectedKeys={sourceUrlFilter ? [sourceUrlFilter] : []}
+                        onSelectionChange={keys => {
+                          const val = Array.from(keys)[0] as string | undefined;
+                          setSourceUrlFilter(val || null);
+                        }}
+                        className="w-full text-xs"
+                        isClearable
+                      >
+                        {(item) => (
+                          <SelectItem key={item.key} textValue={item.label}>
+                            <div className="flex justify-between items-center w-full">
+                              <span>{item.label}</span>
+                              <span className="text-xs text-gray-400 ml-2">{item.count}</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </Select>
+                    </div>
                     {/* Bias Filters */}
                     <div className="mb-4 mr-4">
                       <div className="font-semibold text-sm mb-2">Bias</div>
@@ -287,11 +323,11 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
                       </ButtonGroup>
                     </div>
                   </div>
-                  {anyFilter && (
+                  {(anyFilter || sourceUrlFilter) && (
                     <button
                       className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
                       onClick={() => {
-                        setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null);
+                        setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null); setSourceUrlFilter(null);
                       }}
                       type="button"
                     >
