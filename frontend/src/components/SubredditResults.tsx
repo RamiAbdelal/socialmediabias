@@ -3,6 +3,7 @@ import { useAnalysis } from '../context/AnalysisContext';
 import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem, Select, SelectItem } from '@heroui/react';
 import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
+import { Reddit } from '../lib/types';
 import  RedditPostsSection from './RedditPostsSection';
 import RedditSignalCard from './RedditSignalCard';
 import { isImageUrl, isGalleryUrl, defaultRedditSignal, getBiasColor, getConfidenceColor } from '../lib/utils';
@@ -150,7 +151,7 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
 }
 
   // --- REDDIT COMMENT STATE ---
-  const [commentBodies, setCommentBodies] = useState<{ [permalink: string]: any }>({});
+  const [commentBodies, setCommentBodies] = useState<Record<string, string | null | { body: Reddit.APIResponse } | undefined>>({});
   const [openCommentPermalink, setOpenCommentPermalink] = useState<string | null>(null);
 
   // Remove auto-fetching of all comments. We'll fetch per-listing on demand.

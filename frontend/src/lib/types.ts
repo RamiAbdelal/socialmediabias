@@ -78,6 +78,7 @@ export interface SubredditResultsProps {
   isLoading: boolean;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Reddit {
   // Root response for a Reddit post + comments
   export type APIResponse = [PostListing, CommentListing];
@@ -142,7 +143,7 @@ export namespace Reddit {
     thumbnail_width: number | null;
     author_flair_template_id: string | null;
     is_original_content: boolean;
-    user_reports: any[];
+  user_reports: unknown[];
     secure_media: object | null;
     is_reddit_media_domain: boolean;
     is_meta: boolean;
@@ -157,7 +158,7 @@ export namespace Reddit {
     thumbnail: string;
     edited: boolean | number;
     author_flair_css_class: string | null;
-    steward_reports: any[];
+  steward_reports: unknown[];
     author_flair_richtext: FlairRichText[];
     gildings: Gildings;
     content_categories: string[] | null;
@@ -201,14 +202,14 @@ export namespace Reddit {
     link_flair_background_color: string;
     id: string;
     is_robot_indexable: boolean;
-    report_reasons: any | null;
+  report_reasons: string[] | null;
     author: string;
     discussion_type: string | null;
     num_comments: number;
     send_replies: boolean;
     whitelist_status: string | null;
     contest_mode: boolean;
-    mod_reports: any[];
+  mod_reports: string[];
     author_patreon_flair: boolean;
     author_flair_text_color: string | null;
     permalink: string;
@@ -233,7 +234,7 @@ export namespace Reddit {
     approved_at_utc: number | null;
     approved_by: string | null;
     archived: boolean;
-    associated_award: any | null;
+    associated_award: string | null;
     author: string;
     author_flair_background_color: string | null;
     author_flair_css_class: string | null;
@@ -275,7 +276,7 @@ export namespace Reddit {
     mod_note: string | null;
     mod_reason_by: string | null;
     mod_reason_title: string | null;
-    mod_reports: any[];
+    mod_reports: string[];
     name: string;
     no_follow: boolean;
     num_reports: number | null;
@@ -285,14 +286,14 @@ export namespace Reddit {
     removed: boolean;
     removed_by: string | null;
     removed_by_category: string | null;
-    report_reasons: any | null;
+    report_reasons: string[] | null;
     replies: "" | Listing<Comment>;
     saved: boolean;
     score: number;
     score_hidden: boolean;
     send_replies: boolean;
     stickied: boolean;
-    steward_reports: any[];
+    steward_reports: unknown[];
     subreddit: string;
     subreddit_id: string;
     subreddit_name_prefixed: string;
@@ -300,7 +301,7 @@ export namespace Reddit {
     total_awards_received: number;
     treatment_tags: string[];
     ups: number;
-    user_reports: any[];
+    user_reports: unknown[];
   }
 
   // Account (kind: t2)

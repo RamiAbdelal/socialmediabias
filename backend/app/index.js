@@ -35,7 +35,7 @@ app.get('/', (_, res) => res.json({
 // --- Reddit OAuth2 helper ---
 async function getRedditAccessToken() {
   const creds = Buffer.from(
-    process.env.REDDIT_CLIENT_ID + ':' + process.env.REDDIT_CLIENT_SECRET
+    process.env.REDDIT_CLIENT_ID + ':' + process.env.REDDIT_SECRET
   ).toString('base64');
   const res = await fetch('https://www.reddit.com/api/v1/access_token', {
     method: 'POST',

@@ -4,7 +4,7 @@
 import React from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useRouter } from 'next/navigation';
-import { Card, CardBody, CardHeader, CardFooter, Avatar, Button, Input } from '@heroui/react';
+import { Card, Button, Input } from '@heroui/react';
 
 
 type Subreddit = { name: string; url: string };

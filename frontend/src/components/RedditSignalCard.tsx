@@ -4,15 +4,23 @@ import { isImageUrl, isGalleryUrl } from '../lib/utils';
 import type { RedditSignal } from '../lib/types';
 import { Reddit } from '../lib/types';
 
+// Wrapped API response shape we observed (object with body: [postListing, commentListing])
+interface WrappedAPIResponse { body: Reddit.APIResponse }
+type CommentStoreValue = string | null | WrappedAPIResponse | undefined; // null=loading
+
 interface RedditSignalCardProps {
   d: RedditSignal;
-  ogImages: { [url: string]: string | null };
-  commentBodies: { [permalink: string]: any };
-  setCommentBodies: React.Dispatch<React.SetStateAction<{ [permalink: string]: any }>>;
+  ogImages: Record<string, string | null>;
+  commentBodies: Record<string, CommentStoreValue>;
+  setCommentBodies: React.Dispatch<React.SetStateAction<Record<string, CommentStoreValue>>>;
   fetchRedditCommentBody: (permalink: string) => Promise<string | null>;
   isRedditCommentPermalink: (permalink: string) => boolean;
   openCommentPermalink: string | null;
   setOpenCommentPermalink: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+function isWrappedAPIResponse(v: unknown): v is WrappedAPIResponse {
+  return typeof v === 'object' && v !== null && 'body' in v && Array.isArray((v as { body: unknown }).body) && (v as { body: unknown[] }).body.length === 2;
 }
 
 const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
@@ -32,12 +40,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
   const commentApiResponse: Reddit.APIResponse | null = useMemo(() => {
     if (!d.permalink) return null;
     const raw = commentBodies[d.permalink];
-    if (raw && typeof raw === 'object' && 'body' in (raw as any)) {
-      const body = (raw as any).body;
-      if (Array.isArray(body) && body.length === 2) {
-        return body as Reddit.APIResponse; // [PostListing, CommentListing]
-      }
-    }
+    if (isWrappedAPIResponse(raw)) return raw.body;
     return null;
   }, [commentBodies, d.permalink]);
 
@@ -47,7 +50,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
     const commentListing = commentApiResponse[1];
     if (commentListing?.data?.children) {
       // Filter only t1 comment kinds
-      return commentListing.data.children.filter((c: any) => c.kind === 't1') as Reddit.Comment[];
+  return commentListing.data.children.filter((c): c is Reddit.Comment => c.kind === 't1');
     }
     return [];
   }, [commentApiResponse]);
@@ -57,8 +60,8 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
     if (!comments || comments.length === 0) return null;
     return comments.map((c) => {
       const data = c.data;
-      const hasReplies = data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.length > 0;
-      const repliesListing = hasReplies ? (data.replies as Reddit.Listing<Reddit.Comment>).data.children.filter((r: any) => r.kind === 't1') as Reddit.Comment[] : [];
+  const hasReplies = data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.length > 0;
+  const repliesListing = hasReplies ? (data.replies as Reddit.Listing<Reddit.Comment>).data.children.filter((r): r is Reddit.Comment => r.kind === 't1') : [];
       const showReplies = depth + 1 < maxDepth; // we will render deeper replies if within depth budget (depth starts at 0 for top-level)
       return (
         <div key={data.id} className="mt-2">
@@ -87,19 +90,19 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
   const deeperAvailable = useMemo(() => {
     if (!commentApiResponse) return false;
     // BFS up to maxDepth, if any node at depth === maxDepth - 1 has replies we can go deeper
-    const queue: { node: Reddit.Comment; depth: number }[] = topLevelComments.map(c => ({ node: c, depth: 0 }));
+  const queue: { node: Reddit.Comment; depth: number }[] = topLevelComments.map(c => ({ node: c, depth: 0 }));
     while (queue.length) {
       const { node, depth } = queue.shift()!;
       if (depth >= maxDepth - 1) {
         const data = node.data;
-        if (data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.some((ch: any) => ch.kind === 't1')) {
+  if (data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.some((ch): ch is Reddit.Comment => ch.kind === 't1')) {
           return true;
         }
         continue;
       }
       const data = node.data;
       if (data.replies && typeof data.replies === 'object') {
-        const kids = (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.filter((ch: any) => ch.kind === 't1') || [];
+  const kids = (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.filter((ch): ch is Reddit.Comment => ch.kind === 't1') || [];
         kids.forEach(k => queue.push({ node: k, depth: depth + 1 }));
       }
     }
@@ -233,7 +236,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
               {/* Raw string case (legacy) */}
               {openCommentPermalink === d.permalink && typeof commentBodies[d.permalink] === 'string' && commentBodies[d.permalink] !== '' && (
                 <div className="mt-1 bg-neutral-900 rounded p-2 text-xs text-white/90 border border-neutral-700">
-                  <span>{commentBodies[d.permalink]}</span>
+                  <span>{commentBodies[d.permalink] as string}</span>
                 </div>
               )}
               {/* Structured comments case */}
@@ -289,7 +292,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
 };
 
 // Dev-only raw JSON toggle component
-const RawJsonToggle: React.FC<{ raw: any }> = ({ raw }) => {
+const RawJsonToggle: React.FC<{ raw: CommentStoreValue }> = ({ raw }) => {
   const [open, setOpen] = useState(false);
   if (!raw || typeof raw !== 'object') return null;
   return (
