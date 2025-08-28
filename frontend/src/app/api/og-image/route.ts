@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const response = await fetch(url, { headers: { "User-Agent": process.env.REDDIT_USER_AGENT  || "Mozilla/5.0" } });
     if (!response.ok) {
       return NextResponse.json({ error: "Failed to fetch target URL" }, { status: 500 });
     }

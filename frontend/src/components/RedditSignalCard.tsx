@@ -60,7 +60,7 @@ const RedditSignalCard: React.FC<RedditSignalCardProps> = ({
     if (!comments || comments.length === 0) return null;
     return comments.map((c) => {
       const data = c.data;
-  const hasReplies = data.replies && typeof data.replies === 'object' && (data.replies as Reddit.Listing<Reddit.Comment>).data?.children?.length > 0;
+  const hasReplies = data.replies && typeof data.replies === 'object' && data.replies.data?.children?.length > 0;
   const repliesListing = hasReplies ? (data.replies as Reddit.Listing<Reddit.Comment>).data.children.filter((r): r is Reddit.Comment => r.kind === 't1') : [];
       const showReplies = depth + 1 < maxDepth; // we will render deeper replies if within depth budget (depth starts at 0 for top-level)
       return (

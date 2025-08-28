@@ -215,7 +215,7 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
           <CardBody className="px-6 py-0">
             {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
               <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
-                <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full">
+                <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full" aria-label="Filters">
                   <div className="flex flex-row items-start flex-wrap">
                     {/* Source URL Filter */}
                     <div className="mb-4 mr-4 min-w-[300px]">
@@ -225,6 +225,7 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
                         showScrollIndicators={true}
                         placeholder="Select Source URL"
                         selectedKeys={sourceUrlFilter ? [sourceUrlFilter] : []}
+                        aria-label={"Source URL"}
                         onSelectionChange={keys => {
                           const val = Array.from(keys)[0] as string | undefined;
                           setSourceUrlFilter(val || null);
@@ -233,7 +234,7 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
                         isClearable
                       >
                         {(item) => (
-                          <SelectItem key={item.key} textValue={item.label}>
+                          <SelectItem key={item.key} textValue={item.label} aria-label={item.label}>
                             <div className="flex justify-between items-center w-full">
                               <span>{item.label}</span>
                               <span className="text-xs text-gray-400 ml-2">{item.count}</span>
