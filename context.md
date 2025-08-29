@@ -50,6 +50,16 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 
 *All other signals and adapters are deferred until after MVP.*
 
+2. **Discussion / Comment Sentiment Signal (Heuristic v0)**
+  * Fetches a capped subset (currently up to 8) of posts that have MBFC-mapped external URLs.
+  * Pulls up to 20 top-level comments (depth 1) per post via Reddit OAuth.
+  * Applies lightweight lexical stance heuristic (positive / negative token lists) to approximate community agreement or disagreement with the linked source.
+  * Computes per-post engagement weight: `engagement = num_comments + score/100`.
+  * Maps source MBFC bias label to numeric lean (−5 far-left .. +5 far-right) and multiplies by sentiment multiplier (+1 agree / −1 disagree / 0 neutral) * engagement.
+  * Aggregates weighted post contributions -> average raw lean (−5..+5) -> normalized 0..10 bias score with label bucket (far-left, left, center, right, far-right).
+  * Confidence heuristic scales with sampled posts (capped at 0.95).
+  * Status: Implemented heuristically in backend `/api/analyze` response under `discussionSignal`.
+
 ---
 
 ## ✅ Acceptance Criteria (MVP Focus)
@@ -258,6 +268,12 @@ interface AnalysisResult {
   message?: string;              // fallback / informational
   analysisDate?: string;         // ISO timestamp
   signalResults?: SignalResult[];// optional future multi-signal array
+  discussionSignal?: {
+    samples: Array<{ title: string; url: string; permalink: string; bias: string; sentiment: 'positive'|'negative'|'neutral'; engagement: number; sampleComments: string[] }>;
+    leanRaw: number;           // -5..5 raw combined lean
+    leanNormalized: number;    // 0..10 normalized score
+    label: string;             // categorical label
+  };
 }
 ```
 
@@ -338,7 +354,7 @@ Filters are additive AND conditions across: Bias, Credibility, Factual Reporting
 | Auth | None | API key for backend | User accounts / personalization |
 
 ---
-Document updated: 2025-08-26
+Document updated: 2025-08-28 (Added heuristic Discussion Signal + combined scoring v0)
 Maintainer: (update with your name/contact)
 
 ---
@@ -503,8 +519,8 @@ Frontend
 
 Scoring & Signals
 - [x] Initial MBFCSignal integration (URL extraction + lookup)
-- [~] Interim static overallScore placeholder (needs dynamic weighting)
-- [ ] (Δ) Formal scoring function with pluggable weighting per signal
+- [x] Combined heuristic scoring (MBFC + comment sentiment engagement weighting)
+- [ ] (Δ) Formal scoring function with tunable weights & calibration dataset
 
 DX / Docs
 - [x] Centralized living architecture doc (this file)
@@ -515,9 +531,9 @@ Security / Ops
 - [ ] (Δ) Structured logging (pino) + request correlation
 - [ ] (Δ) Graceful shutdown for DB pool
 
-### Phase 2: Signal Expansion & Foundational Intelligence (NEXT FOCUS)
+### Phase 2: Signal Expansion & Foundational Intelligence (IN PROGRESS)
 Signals
-- [ ] RedditCommentSignal (thread sentiment + political leaning via AI)
+- [~] RedditCommentSignal (heuristic implemented; AI stance classification pending)
 - [ ] (Δ) Comment body extraction/cleaning (current raw JSON -> text) feeding sentiment model
 - [ ] (Δ) Basic sentiment + political entity extraction pipeline
  - [ ] (Δ) Exclusive Comment Browsing UI (single expanded comment thread at a time)
@@ -530,8 +546,9 @@ AI / NLP Pipeline
 - [ ] (Δ) Caching of AI responses (content hash -> response)
 
 Scoring & Aggregation
-- [ ] Replace static overallScore with weighted combination (MBFC vs Comments)
-- [ ] Confidence metric derived from signal agreement & volume
+- [x] Replace static overallScore with weighted combination (implicit engagement weighting)
+- [ ] Introduce tunable weights (alpha_MBFC, alpha_comments)
+- [ ] Confidence metric derived from signal agreement & volume (current heuristic based on sample count)
 
 Frontend Enhancements
 - [ ] UI disclaimer component (Questionable heuristic transparency)

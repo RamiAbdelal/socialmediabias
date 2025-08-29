@@ -69,6 +69,20 @@ export interface AnalysisResult {
   details?: MBFCDetail[];
   totalPosts?: number;
   urlsChecked?: number;
+  discussionSignal?: {
+    samples: Array<{
+      title: string;
+      url: string;
+      permalink: string;
+      bias: string;
+      sentiment: 'positive' | 'negative' | 'neutral';
+      engagement: number;
+      sampleComments: string[];
+    }>;
+    leanRaw: number;           // -5..5 raw score
+    leanNormalized: number;    // 0..10 normalized
+    label: string;             // label bucket
+  };
 }
 
 export interface SubredditResultsProps {

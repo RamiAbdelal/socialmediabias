@@ -19,6 +19,6 @@ export const popularSubreddits = [
   { name: 'r/Libertarian', url: 'https://www.reddit.com/r/Libertarian' },
   { name: 'r/Britain', url: 'https://www.reddit.com/r/Britain' },
   { name: 'r/centrist', url: 'https://www.reddit.com/r/centrist' },
-  { name: 'r/PoliticalDiscussion', url: 'https://www.reddit.com/r/PoliticalDiscussion' },
+  { name: 'r/NoFilterNews', url: 'https://www.reddit.com/r/NoFilterNews' },
 ];
       

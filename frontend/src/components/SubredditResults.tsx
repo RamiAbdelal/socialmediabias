@@ -162,6 +162,8 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
     console.log('Current commentBodies state:', commentBodies);
   }, [commentBodies]);
 
+  console.log("Subreddit Result", result)
+
   return (
     <div className="mb-8">
       {error && (
@@ -213,6 +215,67 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
 
           {/* Bias Breakdown & Filters in Accordion */}
           <CardBody className="px-6 py-0">
+            {result.discussionSignal && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-2">Discussion Sentiment (Heuristic)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Normalized Lean</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.leanNormalized.toFixed(2)} / 10</div>
+                    <div className="text-sm capitalize text-neutral-300">{result.discussionSignal.label}</div>
+                  </div>
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Raw Lean (-5..5)</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.leanRaw.toFixed(2)}</div>
+                    <div className="text-xs text-neutral-400">Weighted by engagement</div>
+                  </div>
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Samples</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.samples.length}</div>
+                    <div className="text-xs text-neutral-400">posts analyzed</div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-neutral-700/50">
+                  <table className="w-full text-sm">
+                    <thead className="bg-neutral-800 text-neutral-300">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Post Title</th>
+                        <th className="text-left p-2 font-medium">MBFC Bias</th>
+                        <th className="text-left p-2 font-medium">Sentiment</th>
+                        <th className="text-left p-2 font-medium">Engagement</th>
+                        <th className="text-left p-2 font-medium">Comments (sample)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.discussionSignal.samples.map((s) => (
+                        <tr key={s.permalink} className="border-t border-neutral-700/40 align-top">
+                          <td className="p-2 max-w-xs">
+                            <a href={`https://reddit.com${s.permalink}`} target="_blank" rel="noopener" className="text-blue-300 hover:underline">
+                              {s.title}
+                            </a>
+                          </td>
+                          <td className="p-2 text-xs whitespace-nowrap">{s.bias}</td>
+                          <td className="p-2 text-xs capitalize">
+                            <span className={
+                              s.sentiment === 'positive' ? 'text-green-400' : s.sentiment === 'negative' ? 'text-red-400' : 'text-neutral-400'
+                            }>{s.sentiment}</span>
+                          </td>
+                          <td className="p-2 text-xs">{s.engagement.toFixed(1)}</td>
+                          <td className="p-2 text-xs">
+                            <ul className="space-y-1 list-disc ml-4">
+                              {s.sampleComments.slice(0,3).map((c,i) => (
+                                <li key={i} className="truncate max-w-xs" title={c}>{c}</li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-neutral-400 mt-2">Heuristic prototype: lexical stance only. Will be replaced with AI stance classification.</p>
+              </div>
+            )}
             {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
               <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
                 <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full" aria-label="Filters">
