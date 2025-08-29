@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
-import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem, Select, SelectItem } from '@heroui/react';
+import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem } from '@heroui/react';
 import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
 import { Reddit } from '../lib/types';
@@ -19,6 +19,18 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
   const [countryFilter, setCountryFilter] = useState<string|null>(null);
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string|null>(null);
   const [sourceUrlFilter, setSourceUrlFilter] = useState<string|null>(null);
+  const [sourceUrlOpen, setSourceUrlOpen] = useState(false);
+  const sourceWrapperRef = useRef<HTMLDivElement|null>(null);
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!sourceWrapperRef.current) return;
+      if (!sourceWrapperRef.current.contains(e.target as Node)) {
+        setSourceUrlOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   // --- FILTER LOGIC ---
   // Combine MBFCDetail[] and RedditPost[] on the 'url' attribute, deduplicated, using defaultRedditSignal for clean merging
@@ -279,32 +291,45 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
             {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
               <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
                 <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full" aria-label="Filters">
-                  <div className="flex flex-row items-start flex-wrap">
+                  <div className="flex flex-row items-start flex-wrap relative">
                     {/* Source URL Filter */}
-                    <div className="mb-4 mr-4 min-w-[300px]">
+                    <div className="mb-4 mr-4 min-w-[300px]" ref={sourceWrapperRef}>
                       <div className="font-semibold text-sm mb-2">Source URL</div>
-                      <Select
-                        items={sourceUrlOptions}
-                        showScrollIndicators={true}
-                        placeholder="Select Source URL"
-                        selectedKeys={sourceUrlFilter ? [sourceUrlFilter] : []}
-                        aria-label={"Source URL"}
-                        onSelectionChange={keys => {
-                          const val = Array.from(keys)[0] as string | undefined;
-                          setSourceUrlFilter(val || null);
-                        }}
-                        className="w-full text-xs"
-                        isClearable
+                      <button
+                        type="button"
+                        onClick={() => setSourceUrlOpen(o => !o)}
+                        className="w-full text-left px-3 py-2 rounded-md border border-neutral-600 bg-neutral-800 text-xs hover:border-neutral-400 transition flex items-center justify-between"
+                        aria-haspopup="listbox"
+                        aria-expanded={sourceUrlOpen}
                       >
-                        {(item) => (
-                          <SelectItem key={item.key} textValue={item.label} aria-label={item.label}>
-                            <div className="flex justify-between items-center w-full">
-                              <span>{item.label}</span>
-                              <span className="text-xs text-gray-400 ml-2">{item.count}</span>
-                            </div>
-                          </SelectItem>
-                        )}
-                      </Select>
+                        <span className="truncate pr-2">{sourceUrlFilter || 'Select Source URL'}</span>
+                        <span className="opacity-60">▾</span>
+                      </button>
+                      {sourceUrlOpen && (
+                        <ul
+                          role="listbox"
+                          className="absolute z-50 mt-1 max-h-60 overflow-auto w-[300px] rounded-md border border-neutral-600 bg-neutral-900 shadow-xl text-xs"
+                        >
+                          <li
+                            className={`px-3 py-1 cursor-pointer hover:bg-neutral-700 ${!sourceUrlFilter ? 'bg-neutral-700/40' : ''}`}
+                            onClick={() => { setSourceUrlFilter(null); setSourceUrlOpen(false); }}
+                            role="option"
+                            aria-selected={!sourceUrlFilter}
+                          >All Sources</li>
+                          {sourceUrlOptions.map(opt => (
+                            <li
+                              key={opt.key}
+                              className={`px-3 py-1 cursor-pointer hover:bg-neutral-700 flex justify-between ${sourceUrlFilter === opt.key ? 'bg-neutral-700/50' : ''}`}
+                              onClick={() => { setSourceUrlFilter(opt.key); setSourceUrlOpen(false); }}
+                              role="option"
+                              aria-selected={sourceUrlFilter === opt.key}
+                            >
+                              <span className="truncate max-w-[220px]" title={opt.label}>{opt.label}</span>
+                              <span className="text-neutral-400 ml-2">{opt.count}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     {/* Bias Filters */}
                     <div className="mb-4 mr-4">
