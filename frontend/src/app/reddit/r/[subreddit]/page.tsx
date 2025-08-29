@@ -7,7 +7,7 @@ import { useAnalysis } from "../../../../context/AnalysisContext";
 import SubredditResults from "../../../../components/SubredditResults";
 
 export default function SubredditPage() {
-  const { subreddit } = useParams();
+  const subreddit = (useParams() as { subreddit: string }).subreddit;
   const { analyzeCommunity, result, error, isLoading } = useAnalysis();
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function SubredditPage() {
     <main>
       {isLoading && <p className="text-gray-400">Analyzing r/{subreddit}...</p>}
       {error && <p className="text-red-500">{error}</p>}
-      {result && <SubredditResults result={result} error={error} isLoading={isLoading} />}
+      {result && <SubredditResults subreddit={subreddit} result={result} error={error} isLoading={isLoading} />}
     </main>
   );
 }

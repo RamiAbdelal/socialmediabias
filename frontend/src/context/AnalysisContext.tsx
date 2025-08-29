@@ -1,6 +1,6 @@
 // frontend/src/context/AnalysisContext.tsx
 "use client";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 
 
 
@@ -53,7 +53,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(false);
   const [communityName, setCommunityName] = useState('');
 
-  const analyzeCommunity = async (url: string) => {
+  const analyzeCommunity = useCallback(async (url: string) => {
     if (!url.trim()) return;
     setIsLoading(true);
     setError(null);
@@ -74,7 +74,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   return (
     <AnalysisContext.Provider value={{ result, error, isLoading, analyzeCommunity, communityName, setCommunityName }}>

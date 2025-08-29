@@ -32,6 +32,25 @@ app.get('/', (_, res) => res.json({
   version: 'MVP-JS',
 }));
 
+// --- Reddit OAuth2 helper ---
+async function getRedditAccessToken() {
+  const creds = Buffer.from(
+    process.env.REDDIT_CLIENT_ID + ':' + process.env.REDDIT_SECRET
+  ).toString('base64');
+  const res = await fetch('https://www.reddit.com/api/v1/access_token', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${creds}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
+    },
+    body: 'grant_type=client_credentials'
+  });
+  if (!res.ok) throw new Error('Failed to get Reddit access token');
+  const data = await res.json();
+  return data.access_token;
+}
+
 // POST /api/analyze { redditUrl: string }
 app.post('/api/analyze', async (req, res) => {
   console.info("Received analyze request");
@@ -40,23 +59,28 @@ app.post('/api/analyze', async (req, res) => {
     return res.status(400).json({ error: 'Valid redditUrl required' });
   }
   try {
-    // Fetch top posts from subreddit (Reddit public API, no auth for MVP)
+    // Fetch top posts from subreddit (Reddit OAuth2 API)
     const subredditMatch = redditUrl.match(/reddit\.com\/(r\/[^\/]+)/);
     if (!subredditMatch) return res.status(400).json({ error: 'Could not extract subreddit' });
     const subreddit = subredditMatch[1];
-    const apiUrl = `https://www.reddit.com/${subreddit}/top.json?limit=25&t=month`;
-    const apiRes = await fetch(apiUrl, { headers: { 'User-Agent': 'smb-mvp/0.1' } });
+    const accessToken = await getRedditAccessToken();
+    const apiUrl = `https://oauth.reddit.com/${subreddit}/top.json?limit=25&t=month`;
+    const apiRes = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
+      }
+    });
     if (!apiRes.ok) throw new Error('Failed to fetch subreddit');
     const apiJson = await apiRes.json();
     const posts = (apiJson.data && apiJson.data.children) ? apiJson.data.children : [];
 
     console.info(`Fetched ${posts.length} posts from subreddit: ${subreddit}`);
-
-    console.info("API JSON:", apiJson); 
+    console.info("API JSON:", apiJson);
 
     // Extract all URLs from posts
     const urls = posts.map(p => p.data && p.data.url).filter(u => u && /^https?:\/\//.test(u));
-    
+
     // Check MBFC bias for each URL (mock if DB not loaded)
     let biasResults = [];
     let biasCount = {};
@@ -83,23 +107,149 @@ app.post('/api/analyze', async (req, res) => {
       }
     } catch {}
 
+    // If MBFC data exists, attempt discussion sentiment scoring.
     if (mbfcFound) {
-      // Return MBFC bias results as before
+      // -------- Heuristic Discussion Sentiment & Combined Scoring --------
+      const urlBiasMap = {};
+      for (const r of biasResults) {
+        if (r.url && r.bias) urlBiasMap[r.url] = r.bias;
+      }
+
+      function mapBiasToScore(bias) {
+        const biasMap = {
+          'Extreme-Left': -5,
+          'Left': -4,
+          'Left-Center': -2,
+          'Least Biased': 0,
+          'Right-Center': 2,
+          'Right': 4,
+          'Extreme-Right': 5,
+          'Questionable': 4
+        };
+        return biasMap[bias] ?? 0;
+      }
+      function mapSentimentToMultiplier(sentiment) {
+        switch (sentiment) {
+          case 'positive': return 1;
+          case 'negative': return -1;
+          default: return 0;
+        }
+      }
+      function normalizeOverall(avg) {
+        const n = ((avg + 5) / 10) * 10;
+        return Math.min(10, Math.max(0, n));
+      }
+      function labelForScore(s) {
+        if (s <= 1.5) return 'far-left';
+        if (s <= 3.5) return 'left';
+        if (s < 6.5) return 'center';
+        if (s < 8.5) return 'right';
+        return 'far-right';
+      }
+      async function fetchComments(permalink, token) {
+        try {
+          const url = `https://oauth.reddit.com${permalink}.json?limit=50&depth=1`;
+          const r = await fetch(url, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
+            }
+          });
+          if (!r.ok) return null;
+          return await r.json();
+        } catch { return null; }
+      }
+      function extractTopLevelCommentBodies(threadJson) {
+        if (!Array.isArray(threadJson) || threadJson.length < 2) return [];
+        const commentsListing = threadJson[1];
+        const children = commentsListing?.data?.children || [];
+        return children
+          .filter(c => c && c.kind === 't1')
+          .map(c => c.data && c.data.body)
+          .filter(Boolean)
+          .slice(0, 20);
+      }
+      function heuristicSentiment(commentTexts) {
+        if (!commentTexts.length) return 'neutral';
+        const joined = commentTexts.join('\n').toLowerCase();
+        const negativeWords = ['propaganda','trash','fake','lies','lying','biased','hack','hate','disgusting','bad take','cope'];
+        const positiveWords = ['agree','true','accurate','based','good point','well said','makes sense'];
+        let neg = 0, pos = 0;
+        for (const w of negativeWords) if (joined.includes(w)) neg++;
+        for (const w of positiveWords) if (joined.includes(w)) pos++;
+        if (neg === 0 && pos === 0) return 'neutral';
+        if (neg > pos * 1.2) return 'negative';
+        if (pos > neg * 1.2) return 'positive';
+        return 'neutral';
+      }
+      let sentimentSamples = [];
+      let subredditLeanScore = 5;
+      let leanRaw = 0;
+      let confidence = 0.3;
+      try {
+        const accessToken2 = await getRedditAccessToken();
+        const MAX_POSTS_FOR_SENTIMENT = 8;
+        for (const p of posts.slice(0, MAX_POSTS_FOR_SENTIMENT)) {
+          const postData = p.data || {};
+          const biasLabel = urlBiasMap[postData.url];
+          if (!biasLabel) continue;
+            if (!postData.permalink) continue;
+          const thread = await fetchComments(postData.permalink, accessToken2);
+          if (!thread) continue;
+          const bodies = extractTopLevelCommentBodies(thread);
+          const sentiment = heuristicSentiment(bodies);
+          const engagement = (postData.num_comments || 0) + (postData.score || 0) / 100;
+          sentimentSamples.push({
+            title: postData.title,
+            url: postData.url,
+            permalink: postData.permalink,
+            bias: biasLabel,
+            sentiment,
+            engagement,
+            sampleComments: bodies.slice(0,3)
+          });
+        }
+        let totalWeighted = 0;
+        let totalEngagement = 0;
+        for (const s of sentimentSamples) {
+          const postBiasScore = mapBiasToScore(s.bias);
+          const mult = mapSentimentToMultiplier(s.sentiment);
+          if (mult === 0) continue;
+          const postLean = postBiasScore * mult; // -5..5
+          totalWeighted += postLean * s.engagement;
+          totalEngagement += s.engagement;
+        }
+        if (totalEngagement > 0) {
+          const avgRaw = totalWeighted / totalEngagement;
+          leanRaw = avgRaw;
+          subredditLeanScore = normalizeOverall(avgRaw);
+        }
+        confidence = sentimentSamples.length > 0 ? Math.min(0.95, 0.4 + 0.07 * sentimentSamples.length) : confidence;
+      } catch (err) {
+        console.warn('Discussion sentiment heuristic failed', err.message);
+      }
+
       response = {
         subreddit,
         totalPosts: posts.length,
         urlsChecked: urls.length,
         biasBreakdown: biasCount,
         details: biasResults,
-        overallScore: { score: 5.0, label: 'center', confidence: 0.8 },
+        overallScore: { score: subredditLeanScore, label: labelForScore(subredditLeanScore), confidence },
         signalResults: [
           {
             signalType: 'MBFCSignal',
-            score: { score: 5.0, label: 'center', confidence: 0.8 },
-            summary: 'MBFC bias result',
+            score: { score: subredditLeanScore, label: labelForScore(subredditLeanScore), confidence },
+            summary: 'MBFC + heuristic discussion sentiment combined',
             examples: urls.slice(0, 3)
           }
         ],
+        discussionSignal: {
+          samples: sentimentSamples,
+          leanRaw,
+          leanNormalized: subredditLeanScore,
+            label: labelForScore(subredditLeanScore)
+        },
         redditPosts: posts.map(p => ({
           title: p.data && p.data.title,
           url: p.data && p.data.url,
@@ -108,13 +258,12 @@ app.post('/api/analyze', async (req, res) => {
           score: p.data && p.data.score
         })),
         communityName: subreddit,
-        platform: 'reddit',
         analysisDate: new Date().toISOString()
-      }
+      };
       res.json(response);
-      console.info("MBFC bias results found:", response);
+      console.info('MBFC bias results (with discussion heuristic) sent');
     } else {
-      // No MBFC data: return real Reddit post data for demo
+      // No MBFC data: basic Reddit post payload
       response = {
         subreddit,
         totalPosts: posts.length,
@@ -129,7 +278,7 @@ app.post('/api/analyze', async (req, res) => {
         message: 'No MBFC data found. Showing real Reddit post data only.'
       };
       res.json(response);
-      console.info("No MBFC bias data found, returning Reddit posts:", response);
+      console.info('No MBFC bias data found, returning Reddit posts only');
     }
   } catch (e) {
     res.status(500).json({ error: e.message || 'Unknown error' });

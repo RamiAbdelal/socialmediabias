@@ -7,6 +7,9 @@ services:
     environment:
       - APP_ENV=${ENVIRONMENT}
       - SITE_URL=${SITE_URL}
+      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+      - REDDIT_SECRET=${REDDIT_SECRET}
+      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
     ports:
       - "${DOCKER_PORT_FRONTEND}:80"
     depends_on:

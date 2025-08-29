@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin '../../hero.ts';
 
 :root {
   --background: #ffffff;
@@ -8,8 +9,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-roboto-sans);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +22,13 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'mozillaHeadline', 'mozillaHeadline Fallback', sans-serif;
+  font-variation-settings: 'wdth' 100, 'wght' 700;
+  font-weight: 700;
+}
+
+@source '../../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}';
+@custom-variant dark (&:is(.dark *));

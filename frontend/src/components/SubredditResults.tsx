@@ -1,45 +1,16 @@
-import React, { useState, useMemo } from 'react';
-
-
+import React, { useState, useMemo, useEffect } from 'react';
+import { useAnalysis } from '../context/AnalysisContext';
+import { Button, ButtonGroup, Card, CardBody, CardHeader, CardFooter, Divider, Image, Accordion, AccordionItem, Select, SelectItem } from '@heroui/react';
+import  NextImage  from 'next/image';
 import type { BiasScore, SignalResult, RedditPost, MBFCDetail, AnalysisResult, SubredditResultsProps, RedditSignal } from '../lib/types';
-// Default RedditSignal object for clean merging
-const defaultRedditSignal: RedditSignal = {
-  url: '',
-  bias: undefined,
-  country: undefined,
-  credibility: undefined,
-  factual_reporting: undefined,
-  id: undefined,
-  mbfc_url: undefined,
-  media_type: undefined,
-  source_id: undefined,
-  source_name: undefined,
-  source_url: undefined,
-  created_at: undefined,
-  title: undefined,
-  permalink: undefined,
-  author: undefined,
-  score: undefined,
-};
+import { Reddit } from '../lib/types';
 import  RedditPostsSection from './RedditPostsSection';
-import { isImageUrl, isGalleryUrl } from '../lib/utils';
-import Image from 'next/image';
+import RedditSignalCard from './RedditSignalCard';
+import { isImageUrl, isGalleryUrl, defaultRedditSignal, getBiasColor, getConfidenceColor } from '../lib/utils';
 
-const getBiasColor = (score: number) => {
-  if (score <= 2) return 'text-red-600';
-  if (score <= 4) return 'text-orange-600';
-  if (score <= 6) return 'text-yellow-600';
-  if (score <= 8) return 'text-blue-600';
-  return 'text-purple-600';
-};
+const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, error, isLoading }) => {
 
-const getConfidenceColor = (confidence: number) => {
-  if (confidence >= 0.8) return 'text-green-600';
-  if (confidence >= 0.6) return 'text-yellow-600';
-  return 'text-red-600';
-};
-
-const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLoading }) => {
+  const { communityName,  setCommunityName } = useAnalysis();
 
   // --- FILTER STATE ---
   const [biasFilter, setBiasFilter] = useState<string|null>(null);
@@ -47,6 +18,7 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
   const [factFilter, setFactFilter] = useState<string|null>(null);
   const [countryFilter, setCountryFilter] = useState<string|null>(null);
   const [mediaTypeFilter, setMediaTypeFilter] = useState<string|null>(null);
+  const [sourceUrlFilter, setSourceUrlFilter] = useState<string|null>(null);
 
   // --- FILTER LOGIC ---
   // Combine MBFCDetail[] and RedditPost[] on the 'url' attribute, deduplicated, using defaultRedditSignal for clean merging
@@ -83,9 +55,11 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
       if (factFilter && d.factual_reporting !== factFilter) return false;
       if (countryFilter && d.country !== countryFilter) return false;
       if (mediaTypeFilter && d.media_type !== mediaTypeFilter) return false;
+      if (sourceUrlFilter && d.source_url !== sourceUrlFilter) return false;
       return true;
     });
-  }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter]);
+  }, [allDetails, biasFilter, credFilter, factFilter, countryFilter, mediaTypeFilter, sourceUrlFilter]);
+
 
   console.log("filteredDetails", filteredDetails);  
 
@@ -95,21 +69,100 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
   const factOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.factual_reporting).filter((v): v is string => typeof v === 'string'))), [allDetails]);
   const countryOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.country).filter((v): v is string => typeof v === 'string'))), [allDetails]);
   const mediaTypeOptions = useMemo(() => Array.from(new Set(allDetails.map(d => d.media_type).filter((v): v is string => typeof v === 'string'))), [allDetails]);
+  const sourceUrlOptions = useMemo(() => {
+    const urls = Array.from(new Set(allDetails.map(d => d.source_url).filter((v): v is string => typeof v === 'string' && v !== '')));
+    return urls.map(url => ({
+      key: url,
+      label: url,
+      count: allDetails.filter(d => d.source_url === url).length
+    }));
+  }, [allDetails]);
 
   // --- FILTER BUTTON COMPONENT ---
   const FilterButton = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
-    <button
-      className={`px-3 py-1 rounded-full border font-semibold text-xs transition-all shadow-sm mr-2 mb-2
-        ${active ? `` : `border-yellow-400/30 hover:bg-yellow-700/30 hover:text-yellow-100`}`}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
+    
+      <Button
+        variant='solid'
+        className={`text-xs dark:bg-neutral-800 border-r border-white/10 text-white/90 transition-all shadow-sm hover:shadow-lg
+          ${active ? 'dark:bg-neutral-200 text-gray-900' : ''}`}
+        onClick={onClick}
+        type="button"
+      >
+        {label}
+      </Button>
+    
   );
 
   // --- CLEAR FILTERS BUTTON ---
   const anyFilter = biasFilter || credFilter || factFilter || countryFilter || mediaTypeFilter;
+
+  // Utility to fetch OG:image from a URL
+async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/og-image?url=${encodeURIComponent(url)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.ogImage || null;
+  } catch {
+    return null;
+  }
+}
+  // --- OG IMAGE STATE ---
+  const [ogImages, setOgImages] = useState<{ [url: string]: string | null }>({});
+
+  useEffect(() => {
+    // Only fetch for allDetails that are not images/galleries and not already fetched
+    const urlsToFetch = allDetails
+      .filter((d: RedditSignal) => d.url && !isImageUrl(d.url) && !isGalleryUrl(d.url) && !(d.url in ogImages))
+      .map((d: RedditSignal) => d.url as string);
+      
+    if (urlsToFetch.length === 0) return;
+    urlsToFetch.forEach(async (url: string) => {
+      // Mark as loading to prevent duplicate fetches
+      setOgImages(prev => ({ ...prev, [url]: null }));
+      const og = await fetchOgImage(url);
+      // Always set, even if null, so we don't retry failed URLs
+      setOgImages(prev => ({ ...prev, [url]: og }));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDetails]);
+
+  // Utility to check if a permalink is a Reddit comment URL
+function isRedditCommentPermalink(permalink: string) {
+  // Reddit comment permalinks are like /r/sub/comments/postid/title/commentid/
+  // "/r/centrist/comments/1meje71/i_deeply_regret_my_vote_for_trump/"
+  // They have at least 6 segments when split by '/'
+  if (!permalink) return false;
+  const parts = permalink.split('/').filter(Boolean);
+  return parts.length >= 4 && parts[0] === 'r' && parts[2] === 'comments';
+}
+
+// Utility to fetch a Reddit comment body from a permalink (calls backend API to avoid CORS)
+async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
+  try {
+    const res = await fetch(`/api/reddit-comment?permalink=${encodeURIComponent(permalink)}`);
+    console.log("Fetching Reddit Comment Body", permalink, res)
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+  // --- REDDIT COMMENT STATE ---
+  const [commentBodies, setCommentBodies] = useState<Record<string, string | null | { body: Reddit.APIResponse } | undefined>>({});
+  const [openCommentPermalink, setOpenCommentPermalink] = useState<string | null>(null);
+
+  // Remove auto-fetching of all comments. We'll fetch per-listing on demand.
+
+
+  // Log commentBodies state whenever it changes
+  useEffect(() => {
+    console.log('Current commentBodies state:', commentBodies);
+  }, [commentBodies]);
+
+  console.log("Subreddit Result", result)
 
   return (
     <div className={`mb-8  `}>
@@ -122,203 +175,268 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ result, error, isLo
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-200">Analysis Error</h3>
+              <h3 className="text-sm font-medium">Analysis Error</h3>
               <div className="mt-2 text-sm text-yellow-100">{error}</div>
             </div>
           </div>
         </div>
       )}
       {isLoading && (
-        <div className={`text-lg mb-8`}>Analyzing subreddit...</div>
+        <div className="text-yellow-200 text-lg mb-8">Analyzing {communityName}...</div>
       )}
       {result && result.overallScore && (
-        <div className={`rounded-2xl p-6 mb-8`}>
-          <h2 className={`text-2xl font-semibold mb-6`}>Analysis Results</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            <div className={`rounded-lg p-4 `}>
-              <h3 className={`text-lg font-medium mb-2`}>Overall Bias Score</h3>
-              <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)}`}>
-                {result.overallScore.score.toFixed(1)}/10
+        <Card>
+              
+          <CardHeader className="grid grid-cols-1 md:grid-cols-1 gap-6">
+            <h2 className="text-center text-2xl font-semibold bg-gradient-to-r">r/{subreddit}</h2>
+          </CardHeader>
+          <Divider className='opacity-50'/>
+          
+
+          {/* Overall Bias Score & Confidence */}
+          <CardBody className="p-6 pb-0">  
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="dark:bg-neutral-800 rounded-lg shadow-xl p-4">
+                <h3 className="text-lg font-medium mb-2">Overall Bias Score</h3>
+                <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)} bg-gradient-to-r from-blue-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent`}>
+                  {result.overallScore.score.toFixed(1)}/10
+                </div>
+                <div className="capitalize">{result.overallScore.label}</div>
               </div>
-              <div className={` capitalize`}>{result.overallScore.label}</div>
+              <div className="dark:bg-neutral-800 rounded-lg shadow-xl p-4">
+                <h3 className="text-lg font-medium mb-2">Confidence</h3>
+                <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)} bg-gradient-to-r from-green-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent`}>
+                  {Math.round(result.overallScore.confidence * 100)}%
+                </div>
+                <div className="text-yellow-300">Analysis confidence</div>
+              </div>
             </div>
-            <div className={`rounded-lg p-4 `}>
-              <h3 className={`text-lg font-medium mb-2`}>Confidence</h3>
-              <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)}`}>
-                {Math.round(result.overallScore.confidence * 100)}%
-              </div>
-              <div>Analysis confidence</div>
-            </div>
-          </div>
-          {/* Bias Breakdown & Filters */}
-          {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
-            <div className="mb-6">
-              <h3 className={`text-lg font-medium mb-2`}>Filter MBFC Results</h3>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {/* Bias Filters */}
-                {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
-                  <FilterButton
-                    key={bias}
-                    label={`${bias} (${count})`}
-                    active={biasFilter === bias}
-                    onClick={() => setBiasFilter(biasFilter === bias ? null : bias)}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {/* Credibility Filters */}
-                {credOptions.map(cred => (
-                  <FilterButton
-                    key={cred}
-                    label={`Credibility: ${cred}`}
-                    active={credFilter === cred}
-                    onClick={() => setCredFilter(credFilter === cred ? null : (cred || ''))}
-                  />
-                ))}
-                {/* Factual Reporting Filters */}
-                {factOptions.map(fact => (
-                  <FilterButton
-                    key={fact}
-                    label={`Factual: ${fact}`}
-                    active={factFilter === fact}
-                    onClick={() => setFactFilter(factFilter === fact ? null : (fact || ''))}
-                  />
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                {/* Country Filters */}
-                {countryOptions.map(country => (
-                  <FilterButton
-                    key={country}
-                    label={`Country: ${country}`}
-                    active={countryFilter === country}
-                    onClick={() => setCountryFilter(countryFilter === country ? null : (country || ''))}
-                  />
-                ))}
-                {/* Media Type Filters */}
-                {mediaTypeOptions.map(mt => (
-                  <FilterButton
-                    key={mt}
-                    label={`Media: ${mt}`}
-                    active={mediaTypeFilter === mt}
-                    onClick={() => setMediaTypeFilter(mediaTypeFilter === mt ? null : (mt || ''))}
-                  />
-                ))}
-              </div>
-              {anyFilter && (
-                <button
-                  className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
-                  onClick={() => {
-                    setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null);
-                  }}
-                  type="button"
-                >
-                  Clear All Filters
-                </button>
-              )}
-            </div>
-          )}
+          </CardBody>
 
-          {/* MBFCResults Card List (filtered) */}
-          {filteredDetails.length > 0 && (
-            <div className="mb-6">
-              <h3 className={`text-lg font-medium mb-4`}>MBFC Results</h3>
-              <div className="grid grid-cols-1 gap-4">
-                {filteredDetails.map((d: RedditSignal, i: number) => (
-                  
-                  <div key={i} className={`$  rounded-xl p-4 flex flex-col `}>
-
-                    <div className="flex items-center mb-2">
-                      
-                      {/* Bias Icon */}
-                      {d.bias && <span className="mr-2">
-                        {d.bias === 'Left' && <span title="Left" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-500 to-blue-800 rounded-full" />}
-                        {d.bias === 'Left-Center' && <span title="Left-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-blue-300 to-blue-600 rounded-full" />}
-                        {d.bias === 'Least Biased' && <span title="Least Biased" className="inline-block w-5 h-5 bg-gradient-to-br from-green-400 to-green-700 rounded-full" />}
-                        {d.bias === 'Right-Center' && <span title="Right-Center" className="inline-block w-5 h-5 bg-gradient-to-br from-orange-300 to-orange-600 rounded-full" />}
-                        {d.bias === 'Right' && <span title="Right" className="inline-block w-5 h-5 bg-gradient-to-br from-red-400 to-red-700 rounded-full" />}
-                        {d.bias === 'Questionable' && <span title="Questionable" className="inline-block w-5 h-5 bg-gradient-to-br from-yellow-400 to-yellow-700 rounded-full" />}
-                        {!d.bias && <span className="inline-block w-5 h-5 bg-gray-400 rounded-full" />}
-                      </span>}
-
-                      {/* Bias Label or Reddit Title */}
-                      <span className={`font-bold text-lg mr-2`}>{d.bias || d.title }</span>
-                      {d.credibility && (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-yellow-800/60 text-yellow-200 text-xs font-semibold" title="Credibility">
-                          Credibility: {d.credibility}
-                        </span>
-                      )}
-                      {d.factual_reporting && (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-emerald-800/60 text-emerald-200 text-xs font-semibold" title="Factual Reporting">
-                          Factual Reporting: {d.factual_reporting}
-                        </span>
-                      )}
-                    </div>
-                    <div className='flex items-center mb-2'>
-                      {(d.author || typeof d.score === 'number') && (
-                        <span className="text-yellow-300 text-sm">
-                          {d.author && <>by {d.author}</>}
-                          {d.author && typeof d.score === 'number' && ' | '}
-                          {typeof d.score === 'number' && <>Score: {d.score}</>}
-                        </span>
-                      )}
-                    </div>  
-                    <div className="mb-2">
-                      {isImageUrl(d.url) && (
-                        <div className="my-2">
-                          <Image
-                            src={d.url}
-                            alt={d.url}
-                            width={600}
-                            height={400}
-                            className="rounded-lg max-h-80 w-auto border border-yellow-400/10 shadow-md mx-auto"
-                            style={{ objectFit: 'contain', height: 'auto', maxHeight: '20rem' }}
-                            loading="lazy"
-                            unoptimized
-                          />
-                        </div>
-                      )}
-                      {isGalleryUrl(d.url) && (
-                        <div className={`my-2  text-xs italic`}>
-                          [Reddit gallery post: <a href={d.url} target="_blank" rel="noopener noreferrer" className="underline">View Gallery</a>]
-                        </div>
-                      )}
-                      <a href={d.url} target="_blank" rel="noopener noreferrer" className={`underline break-all hover: text-sm`}>
-                        {d.url}
-                      </a>
-                    </div>
-
-                    <div className={`flex flex-wrap gap-2 text-xs  mb-2`}>
-                      {d.source_name && <span title="Source Name" className="font-semibold">{d.source_name}</span>}
-                      {d.media_type && <span title="Media Type">[{d.media_type}]</span>}
-                      {d.country && <span title="Country">{d.country}</span>}
-                      {d.source_url && <span title="Source Domain">({d.source_url})</span>}
-                    </div>
-                    <div className={`flex flex-wrap gap-2 text-xs  mb-2`}>
-                      {d.created_at && <span title="MBFC Entry Date">Added: {new Date(d.created_at).toLocaleDateString()}</span>}
-                      {d.id && <span title="MBFC DB ID">ID: {d.id}</span>}
-                    </div>
-                    {d.mbfc_url && (
-                      <div className="mt-2">
-                        <a href={d.mbfc_url} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 px-3 py-1 rounded font-semibold text-xs transition`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 21a4 4 0 005.657 0l.707-.707a4 4 0 000-5.657l-9.9-9.9a4 4 0 00-5.657 0l-.707.707a4 4 0 000 5.657l9.9 9.9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.343 17.657l1.414-1.414" /></svg>
-                          MBFC Article
-                        </a>
-                      </div>
-                    )}
+          {/* Bias Breakdown & Filters in Accordion */}
+          <CardBody className="px-6 py-0">
+            {result.discussionSignal && (
+              <div className="mb-6">
+                <h3 className="text-lg font-medium mb-2">Discussion Sentiment (Heuristic)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Normalized Lean</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.leanNormalized.toFixed(2)} / 10</div>
+                    <div className="text-sm capitalize text-neutral-300">{result.discussionSignal.label}</div>
                   </div>
-                ))}
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Raw Lean (-5..5)</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.leanRaw.toFixed(2)}</div>
+                    <div className="text-xs text-neutral-400">Weighted by engagement</div>
+                  </div>
+                  <div className="dark:bg-neutral-800 rounded-lg p-4">
+                    <div className="text-xs uppercase tracking-wide text-neutral-400 mb-1">Samples</div>
+                    <div className="text-2xl font-semibold">{result.discussionSignal.samples.length}</div>
+                    <div className="text-xs text-neutral-400">posts analyzed</div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto rounded-lg border border-neutral-700/50">
+                  <table className="w-full text-sm">
+                    <thead className="bg-neutral-800 text-neutral-300">
+                      <tr>
+                        <th className="text-left p-2 font-medium">Post Title</th>
+                        <th className="text-left p-2 font-medium">MBFC Bias</th>
+                        <th className="text-left p-2 font-medium">Sentiment</th>
+                        <th className="text-left p-2 font-medium">Engagement</th>
+                        <th className="text-left p-2 font-medium">Comments (sample)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.discussionSignal.samples.map((s) => (
+                        <tr key={s.permalink} className="border-t border-neutral-700/40 align-top">
+                          <td className="p-2 max-w-xs">
+                            <a href={`https://reddit.com${s.permalink}`} target="_blank" rel="noopener" className="text-blue-300 hover:underline">
+                              {s.title}
+                            </a>
+                          </td>
+                          <td className="p-2 text-xs whitespace-nowrap">{s.bias}</td>
+                          <td className="p-2 text-xs capitalize">
+                            <span className={
+                              s.sentiment === 'positive' ? 'text-green-400' : s.sentiment === 'negative' ? 'text-red-400' : 'text-neutral-400'
+                            }>{s.sentiment}</span>
+                          </td>
+                          <td className="p-2 text-xs">{s.engagement.toFixed(1)}</td>
+                          <td className="p-2 text-xs">
+                            <ul className="space-y-1 list-disc ml-4">
+                              {s.sampleComments.slice(0,3).map((c,i) => (
+                                <li key={i} className="truncate max-w-xs" title={c}>{c}</li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-neutral-400 mt-2">Heuristic prototype: lexical stance only. Will be replaced with AI stance classification.</p>
               </div>
+            )}
+            {(result.biasBreakdown || credOptions.length > 0 || factOptions.length > 0 || countryOptions.length > 0 || mediaTypeOptions.length > 0) && (
+              <Accordion defaultExpandedKeys={["1"]} className="w-full mb-4 overflow-y-hidden">
+                <AccordionItem key="1" value="filters" title={<h3 className="text-lg font-medium cursor-pointer">Filters</h3>} className="w-full" aria-label="Filters">
+                  <div className="flex flex-row items-start flex-wrap">
+                    {/* Source URL Filter */}
+                    <div className="mb-4 mr-4 min-w-[300px]">
+                      <div className="font-semibold text-sm mb-2">Source URL</div>
+                      <Select
+                        items={sourceUrlOptions}
+                        showScrollIndicators={true}
+                        placeholder="Select Source URL"
+                        selectedKeys={sourceUrlFilter ? [sourceUrlFilter] : []}
+                        aria-label={"Source URL"}
+                        onSelectionChange={keys => {
+                          const val = Array.from(keys)[0] as string | undefined;
+                          setSourceUrlFilter(val || null);
+                        }}
+                        className="w-full text-xs"
+                        isClearable
+                      >
+                        {(item) => (
+                          <SelectItem key={item.key} textValue={item.label} aria-label={item.label}>
+                            <div className="flex justify-between items-center w-full">
+                              <span>{item.label}</span>
+                              <span className="text-xs text-gray-400 ml-2">{item.count}</span>
+                            </div>
+                          </SelectItem>
+                        )}
+                      </Select>
+                    </div>
+                    {/* Bias Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Bias</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {result.biasBreakdown && Object.entries(result.biasBreakdown).map(([bias, count]) => (
+                          <FilterButton
+                            key={bias}
+                            label={`${bias} (${count})`}
+                            active={biasFilter === bias}
+                            onClick={() => setBiasFilter(biasFilter === bias ? null : bias)}
+                          />
+                        ))}
+                      </ButtonGroup>
+                    </div>
+                    {/* Credibility Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Credibility</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {credOptions.map(cred => {
+                          const count = allDetails.filter(d => d.credibility === cred).length;
+                          return (
+                            <FilterButton
+                              key={cred}
+                              label={`${cred} (${count})`}
+                              active={credFilter === cred}
+                              onClick={() => setCredFilter(credFilter === cred ? null : (cred || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Factual Reporting Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Factual Reporting</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {factOptions.map(fact => {
+                          const count = allDetails.filter(d => d.factual_reporting === fact).length;
+                          return (
+                            <FilterButton
+                              key={fact}
+                              label={`${fact} (${count})`}
+                              active={factFilter === fact}
+                              onClick={() => setFactFilter(factFilter === fact ? null : (fact || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Country Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Country</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {countryOptions.map(country => {
+                          const count = allDetails.filter(d => d.country === country).length;
+                          return (
+                            <FilterButton
+                              key={country}
+                              label={`${country} (${count})`}
+                              active={countryFilter === country}
+                              onClick={() => setCountryFilter(countryFilter === country ? null : (country || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                    {/* Media Type Filters */}
+                    <div className="mb-4 mr-4">
+                      <div className="font-semibold text-sm mb-2">Media Type</div>
+                      <ButtonGroup className="flex flex-wrap items-start justify-start">
+                        {mediaTypeOptions.map(mt => {
+                          const count = allDetails.filter(d => d.media_type === mt).length;
+                          return (
+                            <FilterButton
+                              key={mt}
+                              label={`${mt} (${count})`}
+                              active={mediaTypeFilter === mt}
+                              onClick={() => setMediaTypeFilter(mediaTypeFilter === mt ? null : (mt || ''))}
+                            />
+                          );
+                        })}
+                      </ButtonGroup>
+                    </div>
+                  </div>
+                  {(anyFilter || sourceUrlFilter) && (
+                    <button
+                      className="mt-2 px-4 py-1 rounded-full bg-yellow-400 text-emerald-900 font-bold text-xs border border-yellow-400 shadow hover:bg-yellow-300 transition"
+                      onClick={() => {
+                        setBiasFilter(null); setCredFilter(null); setFactFilter(null); setCountryFilter(null); setMediaTypeFilter(null); setSourceUrlFilter(null);
+                      }}
+                      type="button"
+                    >
+                      Clear All Filters
+                    </button>
+                  )}
+                </AccordionItem>
+              </Accordion>
+            )}
+          </CardBody>
+          <Divider className='opacity-50'/>
+            {/* MBFCResults Card List (filtered) */}
+            {filteredDetails.length > 0 && (
+              <CardBody className="p-6">
+                {/* <h3 className="text-lg font-medium mb-4">MBFC Results</h3> */}
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredDetails.map((d: RedditSignal, i: number) => (
+                    <RedditSignalCard
+                      key={i}
+                      d={d}
+                      ogImages={ogImages}
+                      commentBodies={commentBodies}
+                      setCommentBodies={setCommentBodies}
+                      fetchRedditCommentBody={fetchRedditCommentBody}
+                      isRedditCommentPermalink={isRedditCommentPermalink}
+                      openCommentPermalink={openCommentPermalink}
+                      setOpenCommentPermalink={setOpenCommentPermalink}
+                    />
+                  ))}
+                </div>
+              </CardBody>
+            )}
+            {/* Meta Info */}
+            <div className="text-sm flex flex-wrap gap-4 mt-4">
+              <span>Analyzed: <span className="font-semibold">{result.communityName}</span> on <span className="font-semibold">{result.platform}</span></span>
+              {result.analysisDate && <span>Date: {new Date(result.analysisDate).toLocaleString()}</span>}
+              {typeof result.totalPosts === 'number' && <span>Total Posts: {result.totalPosts}</span>}
+              {typeof result.urlsChecked === 'number' && <span>URLs Checked: {result.urlsChecked}</span>}
             </div>
-          )}
-          {/* Meta Info */}
-          <div className={`text-sm  flex flex-wrap gap-4 mt-4`}>
-            <span>Analyzed: <span className="font-semibold">{result.communityName}</span> on <span className="font-semibold">{result.platform}</span></span>
-            {result.analysisDate && <span>Date: {new Date(result.analysisDate).toLocaleString()}</span>}
-            {typeof result.totalPosts === 'number' && <span>Total Posts: {result.totalPosts}</span>}
-            {typeof result.urlsChecked === 'number' && <span>URLs Checked: {result.urlsChecked}</span>}
-          </div>
-        </div>
+            
+          
+        </Card>
+
       )}
 
       {/* Always show Reddit post data if available */}
