@@ -51,10 +51,13 @@ async function getRedditAccessToken() {
   return data.access_token;
 }
 
-// POST /api/analyze { redditUrl: string }
+const { analyzeSentiment } = require('./ai/adapter');
+
+// POST /api/analyze { redditUrl: string, useAI?: boolean }
 app.post('/api/analyze', async (req, res) => {
   console.info("Received analyze request");
-  const { redditUrl } = req.body;
+  const { redditUrl } = req.body || {};
+  const useAI = process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY;
   if (!redditUrl || !/^https:\/\/(?:www\.)?reddit\.com\//.test(redditUrl)) {
     return res.status(400).json({ error: 'Valid redditUrl required' });
   }
@@ -175,7 +178,7 @@ app.post('/api/analyze', async (req, res) => {
           .slice(0, 20);
       }
 
-      function heuristicSentiment(commentTexts) {
+  function heuristicSentiment(commentTexts) {
         if (!commentTexts.length) return 'neutral';
         const joined = commentTexts.join('\n').toLowerCase();
         const negativeWords = ['propaganda','trash','fake','lies','lying','biased','hack','hate','disgusting','bad take','cope'];
@@ -207,7 +210,26 @@ app.post('/api/analyze', async (req, res) => {
           const thread = await fetchComments(postData.permalink, accessToken);
           if (!thread) continue;
           const bodies = extractTopLevelCommentBodies(thread);
-          const sentiment = heuristicSentiment(bodies);
+          const heuristic = heuristicSentiment(bodies);
+          let sentiment = heuristic;
+          let aiMeta = null;
+          if (useAI) {
+            try {
+              // Combine bodies into one text blob for provider (could be improved with per-comment weighting later)
+              const textBlob = bodies.join('\n---\n');
+              const ai = await analyzeSentiment({ text: textBlob });
+              // Map AI sentiment to expected label if valid
+              if (['positive','negative','neutral'].includes(ai.sentiment)) {
+                sentiment = ai.sentiment;
+                aiMeta = ai;
+              } else {
+                aiMeta = ai; // keep for transparency even if mapping failed
+              }
+            } catch (e) {
+              // Silent fallback; heuristic already assigned.
+              aiMeta = { provider: 'error', error: true };
+            }
+          }
           const engagement = (postData.num_comments || 0) + (postData.score || 0) / 100;
 
           sentimentSamples.push({
@@ -217,7 +239,8 @@ app.post('/api/analyze', async (req, res) => {
             bias: biasLabel,
             sentiment,
             engagement,
-            sampleComments: bodies.slice(0,3)
+            sampleComments: bodies.slice(0,3),
+            aiMeta
           });
         }
 
