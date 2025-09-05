@@ -1,6 +1,6 @@
 
-"use client";
 
+"use client";
 import React from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { useRouter } from 'next/navigation';

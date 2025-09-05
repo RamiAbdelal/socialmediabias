@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+
 import Header from "../components/Header";
 import Menu from "../components/Menu";
 import { popularSubreddits } from "../lib/popularSubreddits";

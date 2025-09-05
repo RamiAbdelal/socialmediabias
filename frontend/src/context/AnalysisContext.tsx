@@ -55,6 +55,11 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
   const analyzeCommunity = useCallback(async (url: string) => {
     if (!url.trim()) return;
+    // Derive community name (subreddit) if present in URL
+    const match = url.match(/reddit\.com\/(r\/[^/]+)/i);
+    if (match) {
+      setCommunityName(match[1]);
+    }
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -67,6 +72,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error((await res.json()).error || "Analysis failed");
       const logged = await res.json();
       setResult(logged);
+      if (logged && logged.communityName) {
+        setCommunityName(logged.communityName);
+      }
       console.log(logged); // Log the result for debugging
     } catch (err) {
       if (err instanceof Error) setError(err.message);

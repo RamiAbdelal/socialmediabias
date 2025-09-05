@@ -1,4 +1,5 @@
-import React from 'react';
+"use client";
+import { Card, CardHeader } from "@heroui/react";
 
 const Header: React.FC = () => (
   <div className="header text-center mb-8">
