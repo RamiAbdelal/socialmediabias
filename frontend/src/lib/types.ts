@@ -78,6 +78,15 @@ export interface AnalysisResult {
       sentiment: 'positive' | 'negative' | 'neutral';
       engagement: number;
       sampleComments: string[];
+        aiMeta?: {
+          provider: string;
+          sentiment?: string;
+          score?: number;
+          reasoning?: string;
+          model?: string;
+          cached?: boolean;
+          error?: boolean;
+        } | null;
     }>;
     leanRaw: number;           // -5..5 raw score
     leanNormalized: number;    // 0..10 normalized

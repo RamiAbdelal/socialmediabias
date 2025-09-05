@@ -178,7 +178,7 @@ app.post('/api/analyze', async (req, res) => {
           .slice(0, 20);
       }
 
-  function heuristicSentiment(commentTexts) {
+      function heuristicSentiment(commentTexts) {
         if (!commentTexts.length) return 'neutral';
         const joined = commentTexts.join('\n').toLowerCase();
         const negativeWords = ['propaganda','trash','fake','lies','lying','biased','hack','hate','disgusting','bad take','cope'];
@@ -217,6 +217,7 @@ app.post('/api/analyze', async (req, res) => {
             try {
               // Combine bodies into one text blob for provider (could be improved with per-comment weighting later)
               const textBlob = bodies.join('\n---\n');
+              console.log('Analyzing sentiment with AI for post:', postData.permalink, textBlob);
               const ai = await analyzeSentiment({ text: textBlob });
               // Map AI sentiment to expected label if valid
               if (['positive','negative','neutral'].includes(ai.sentiment)) {

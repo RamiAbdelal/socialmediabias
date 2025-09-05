@@ -1,4 +1,7 @@
 import { RedditSignal } from "./types";
+import { type ClassValue } from 'clsx';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 // Default RedditSignal object for clean merging
 export const defaultRedditSignal: RedditSignal = {
@@ -41,3 +44,8 @@ export const isImageUrl = (url: string) => {
 export const isGalleryUrl = (url: string) => {
   return url.includes('reddit.com/gallery/');
 };
+
+// Utility className merge similar to shadcn template
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
