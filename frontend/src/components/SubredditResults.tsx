@@ -217,7 +217,7 @@ async function fetchRedditCommentBody(permalink: string): Promise<string|null> {
               </div>
               <div className="dark:bg-neutral-800 rounded-lg shadow-xl p-4">
                 <h3 className="text-lg font-medium mb-2">Confidence</h3>
-                <div className={`text-3xl font-semibold ${getConfidenceColor(result.overallScore.confidence)} bg-gradient-to-r from-green-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent`}>
+                <div className={`text-4xl font-semibold ${getConfidenceColor(result.overallScore.confidence)} bg-gradient-to-r from-green-400 via-yellow-400 to-yellow-600 bg-clip-text text-transparent`}>
                   {Math.round(result.overallScore.confidence * 100)}%
                 </div>
                 <div className="text-yellow-300">Analysis confidence</div>
