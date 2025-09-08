@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+// ----- Config (edit here) -----
+const DEFAULT_UA = process.env.REDDIT_USER_AGENT || "Mozilla/5.0";
+// --------------------------------
+
 // Helper to extract OG:image from HTML string
 function extractOgImage(html: string): string | null {
   const match = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i)
@@ -14,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const response = await fetch(url, { headers: { "User-Agent": process.env.REDDIT_USER_AGENT  || "Mozilla/5.0" } });
+  const response = await fetch(url, { headers: { "User-Agent": DEFAULT_UA } });
     if (!response.ok) {
       return NextResponse.json({ error: "Failed to fetch target URL" }, { status: 500 });
     }

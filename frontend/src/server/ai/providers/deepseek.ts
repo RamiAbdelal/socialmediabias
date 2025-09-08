@@ -1,10 +1,12 @@
+import { resolvePrompt, DEFAULT_PROMPT_VERSION, type PromptKey } from '../prompts';
+
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 const DEEPSEEK_MODEL = 'deepseek-chat';
 
-export async function deepseekSentiment({ text, promptOverride }: { text: string; promptOverride?: string }) {
+export async function deepseekSentiment({ text, promptKey, promptVersion, promptOverride }: { text: string; promptKey?: PromptKey; promptVersion?: string; promptOverride?: string }) {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new Error('DEEPSEEK_API_KEY missing');
-  const basePrompt = promptOverride || 'You are a political discussion sentiment analyzer. Classify the OVERALL stance of the following Reddit comment aggregate toward the ORIGINAL LINKED SOURCE. Output strict JSON with keys sentiment(one of positive|negative|neutral), score(-1..1 number), reasoning(brief phrase).';
+  const basePrompt = resolvePrompt('deepseek', (promptKey || 'stance_source') as PromptKey, promptVersion || DEFAULT_PROMPT_VERSION, promptOverride);
   const prompt = `${basePrompt}\nText:\n${text.slice(0, 8000)}`;
   const body = {
     model: DEEPSEEK_MODEL,

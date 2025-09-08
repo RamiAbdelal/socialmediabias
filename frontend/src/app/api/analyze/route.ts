@@ -1,33 +1,14 @@
 import { NextResponse } from 'next/server';
 import { getMBFCBiasForUrls, MBFCResult } from '@/server/mbfc-signal';
+import { getRedditAccessToken, fetchSubredditTopPosts } from '@/server/reddit';
+import { labelForScore } from '@/server/scoring';
 
 export const runtime = 'nodejs';
 
-async function getRedditAccessToken() {
-  const { REDDIT_CLIENT_ID, REDDIT_SECRET, REDDIT_USER_AGENT } = process.env as Record<string, string | undefined>;
-  if (!REDDIT_CLIENT_ID || !REDDIT_SECRET) throw new Error('Missing REDDIT_CLIENT_ID/REDDIT_SECRET');
-  const creds = Buffer.from(`${REDDIT_CLIENT_ID}:${REDDIT_SECRET}`).toString('base64');
-  const res = await fetch('https://www.reddit.com/api/v1/access_token', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Basic ${creds}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': REDDIT_USER_AGENT || 'smb-mvp/0.1'
-    },
-    body: 'grant_type=client_credentials'
-  });
-  if (!res.ok) throw new Error('Failed to get Reddit access token');
-  const data = await res.json();
-  return data.access_token as string;
-}
-
-function labelForScore(s: number) {
-  if (s <= 1.5) return 'far-left';
-  if (s <= 3.5) return 'left';
-  if (s < 6.5) return 'center';
-  if (s < 8.5) return 'right';
-  return 'far-right';
-}
+// ----- Config (edit here) -----
+const REDDIT_TOP_LIMIT = 25;
+const REDDIT_TOP_TIME = 'month' as const;
+// --------------------------------
 
 export async function POST(request: Request) {
   try {
@@ -39,19 +20,10 @@ export async function POST(request: Request) {
     if (!subredditMatch) return NextResponse.json({ error: 'Could not extract subreddit' }, { status: 400 });
     const subreddit = subredditMatch[1];
 
-    // Fetch subreddit top posts
-    const token = await getRedditAccessToken();
-    const apiUrl = `https://oauth.reddit.com/${subreddit}/top.json?limit=25&t=month`;
-    const apiRes = await fetch(apiUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'User-Agent': process.env.REDDIT_USER_AGENT || 'smb-mvp/0.1'
-      }
-    });
-    if (!apiRes.ok) throw new Error('Failed to fetch subreddit');
+  // Fetch subreddit top posts
+  const token = await getRedditAccessToken();
+  const { posts } = await fetchSubredditTopPosts(subreddit, token, REDDIT_TOP_LIMIT, REDDIT_TOP_TIME);
   interface RedditPostNode { data?: { title?: string; url?: string; permalink?: string; author?: string; score?: number } }
-  const apiJson = await apiRes.json();
-  const posts: RedditPostNode[] = apiJson?.data?.children || [];
 
     // Extract external URLs
   const urls: string[] = posts.map((p: RedditPostNode) => p?.data?.url as string).filter((u: string) => u && /^https?:\/\//.test(u));

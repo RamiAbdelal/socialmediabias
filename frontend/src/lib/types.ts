@@ -70,29 +70,32 @@ export interface AnalysisResult {
   totalPosts?: number;
   urlsChecked?: number;
   discussionSignal?: {
-    samples: Array<{
-      title: string;
-      url: string;
-      permalink: string;
-      bias: string;
-      sentiment: 'positive' | 'negative' | 'neutral';
-      engagement: number;
-      sampleComments: string[];
-        aiMeta?: {
-          provider: string;
-          sentiment?: string;
-          score?: number;
-          reasoning?: string;
-          model?: string;
-          cached?: boolean;
-          error?: boolean;
-        } | null;
-    }>;
+    samples: DiscussionSample[];
     leanRaw: number;           // -5..5 raw score
     leanNormalized: number;    // 0..10 normalized
     label: string;             // label bucket
   };
 }
+
+export type DiscussionSample = {
+  title: string;
+  url: string;
+  permalink: string;
+  // Bias may be missing when MBFC didn’t match
+  bias?: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  engagement: number;
+  sampleComments: string[];
+  aiMeta?: {
+    provider: string;
+    sentiment?: string;
+    score?: number;
+    reasoning?: string;
+    model?: string;
+    cached?: boolean;
+    error?: boolean;
+  } | null;
+};
 
 export interface SubredditResultsProps {
   subreddit: ParamValue;

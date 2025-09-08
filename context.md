@@ -83,6 +83,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 | **AI Integration**         | DeepSeek Chat → OpenAI → HuggingFace pipeline |
 |                            | Prompt: "Analyze political sentiment and community tone" |
 |                            | Get bias score + confidence + summary |
+|                            | Centralized versioned prompts with per-provider overrides (see below) |
 | **Bias Score Logic**       | Weighted combination of all active signals |
 |                            | Normalize to 0–10 score with confidence estimate |
 |                            | Support for multiple metrics (Core, Credibility, etc.) |
@@ -312,6 +313,19 @@ Filters are additive AND conditions across: Bias, Credibility, Factual Reporting
 - [ ] Add structured logging (pino) with log levels and request IDs.
 - [ ] Add graceful shutdown (SIGTERM) for backend DB connection pools.
 - [ ] UI accessibility & dark/light theme toggle.
+
+## 🧠 Centralized AI Prompts (Versioned)
+
+Prompts for AI providers are centralized in `frontend/src/server/ai/prompts.ts`.
+
+- Keys: `stance_source` (comments vs. original linked source) and `stance_title` (comments vs. post title).
+- Versioning: `DEFAULT_PROMPT_VERSION = v1`. Add new versions to the `PROMPT_VERSIONS` map.
+- Provider overrides: Use `PROVIDER_OVERRIDES` to override a specific key/version for `openai` or `deepseek`.
+- Resolution order: explicit override string → provider override → default versioned prompt.
+
+Usage:
+- Providers call `resolvePrompt(providerId, key, version?, override?)` internally.
+- API route `analyze/stream` selects `stance_source` when an MBFC bias exists for the URL, else `stance_title`.
 
 ## 🔐 Security / Privacy Considerations
 - Do not log full access tokens (currently safe; ensure masking if added).
