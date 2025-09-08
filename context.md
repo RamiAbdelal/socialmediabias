@@ -175,7 +175,7 @@ backend/                 # (Removed) legacy Express API — use Next.js API rout
 database/                # DB seed/init artifacts (SQL + MBFC JSON snapshot)
 nginx/                   # Reverse proxy configuration
 docker-compose.yml       # Orchestrates frontend, backend, MySQL
-Makefile                 # (Planned) automation targets
+Makefile                 # Automation targets (dev, db-init/ingest/seed, health, nginx, etc.)
 context.md               # This document (single source of truth)
 README.md                # Public quickstart (shorter than context.md)
 env.example              # Example environment variables
@@ -185,8 +185,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ### 🔎 File-by-File Responsibilities (Authoritative Inventory)
 
 #### Root Level
-- `docker-compose.yml` – Spins up services: `frontend` (Next.js) and `mysql`. Wires env vars, mounts the DB volume.
-- `Makefile` – Placeholder. Planned targets: build, deploy, db export/import, logs, clean, nginx reload.
+- `docker-compose.yml` – Spins up services: `frontend` (Next.js) and `mysql`. Wires env vars; mounts `./database` into the frontend container at `/app/database`.
+- `Makefile` – Implemented automation: dev, db-init, db-ingest-mbfc, db-seed, health, nginx, etc.
 - `context.md` – Canonical project knowledge (architecture + decisions). Update whenever adding/modifying behavior.
 - `README.md` – External-facing concise overview & quickstart. Should not duplicate deep architecture detail.
 - `env.example` – Template for `.env` (copy then customize). Keep keys alphabetized and documented inline where possible.
@@ -459,6 +459,9 @@ docker exec -i mysql mysql -u root -p$MYSQL_ROOT_PASSWORD < /home/ubuntu/socialm
 
 # Import MBFC JSON (copy file to VPS first)
 docker exec -it frontend sh -lc "node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json"
+
+# Verify count
+docker exec -it mysql sh -lc 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysql -u root -e "SELECT COUNT(*) AS count FROM mbfc.mbfc_sources;"'
 ```
 
 ### 4. Development
@@ -622,25 +625,26 @@ Auth / Access
 ### Makefile Automation Summary
 Target | Purpose
 -------|--------
-`dev` | Start all services with build
+`dev` | Start services with build
 `dev-logs` | Tail logs for all services
 `db-reset` | Recreate MySQL container & volume (fresh state)
-`db-fetch-mbfc` | Fetch refreshed MBFC dataset via backend script
-`db-load-mbfc` | Run migrations & seed MBFC data
-`db-setup` | Full DB reset + backend up + migrations + seed
-`db-update` | Fetch then load MBFC dataset (refresh path)
-`setup` | One-shot environment bring-up & seed
+`db-init` | Apply schema from `database/init.sql`
+`db-ingest-mbfc` | Ingest `database/mbfc-current.json` via Node importer inside frontend
+`db-seed` | Run `db-init` then `db-ingest-mbfc`
+`setup` | Bring up stack, wait for MySQL, then `db-init`
 `db-export` | Dump DB to backup.sql
 `db-import` | Restore DB from backup.sql
 `deploy-local` | Local rebuild & detached run
-`deploy-production` | Remote compose up (placeholder credentials)
+`deploy-production` | Remote compose up (placeholder)
 `nginx-test` | Validate NGINX configuration
 `nginx-reload` | Reload NGINX service
 `clean` | Down + prune volumes/images
-`health` | Basic service availability checks
-`mysql-shell` | Interactive MySQL shell w/ env creds
-`backend-reload` | Rebuild & restart backend only
+`health` | Frontend and MySQL checks
+`mysql-shell` | Interactive MySQL shell using env creds
+`backend-reload` | No-op placeholder (backend removed)
 `help` | List make targets with descriptions
+
+Tip: when verifying counts, prefer `SELECT COUNT(*) AS count FROM mbfc.mbfc_sources;` (avoid aliasing to `rows`).
 
 Planned Additions:
 - `ci` (lint + typecheck + unit tests)
@@ -746,43 +750,45 @@ Notes:
 - Ensure NGINX disables buffering for the API location handling SSE, or set `X-Accel-Buffering: no` upstream (we do both as belt-and-suspenders).
 - Long `proxy_read_timeout` avoids idle disconnects during long-running analyses.
 
-## 🛠️ Makefile Automation (To Be Implemented)
+### Add a new SSE event (example)
+To emit an extra phase (e.g., `images`), update `frontend/src/app/api/analyze/stream/route.ts`:
 
-Create a `Makefile` with these targets:
+```ts
+// 1) Add config at file top if needed (e.g., IMAGE_BATCH_SIZE)
 
-```makefile
-# Database operations
-db-export:
-  docker exec mysql mysqldump -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) > backup.sql
+// 2) Inside the handler, after MBFC phase
+await (async () => {
+  // do your work here (fetch/process)
+  const payload = { imagesChecked: urls.length };
+  writeEvent('images', payload); // progressive emit
+})();
 
-db-import:
-  docker exec -i mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < backup.sql
-
-# Deployment
-deploy-local:
-  docker-compose up -d --build
-
-deploy-production:
-  ssh user@server "cd /path/to/project && docker-compose up -d --build"
-
-# NGINX
-nginx-test:
-  sudo nginx -t
-
-nginx-reload:
-  sudo systemctl reload nginx
-
-# Development
-dev:
-  docker-compose up --build
-
-logs:
-  docker-compose logs -f
-
-clean:
-  docker-compose down -v
-  docker system prune -f
+// 3) Ensure client merges the new event in src/context/AnalysisContext.tsx
 ```
+
+Use `writeEvent(type, data)` consistently; always finish with a terminal `done` event.
+
+### Provider prompt override (example)
+Prompts are resolved in `src/server/ai/prompts.ts`. You can override per-call without changing defaults:
+
+```ts
+import { analyzeSentiment } from '@/server/ai/adapter';
+
+const result = await analyzeSentiment({
+  text,
+  promptKey: 'stance_title',
+  promptVersion: 'v1',
+  promptOverride: 'You are a strict JSON formatter... {"sentiment":"positive|neutral|negative"}',
+});
+```
+
+Inside a provider, resolve explicitly:
+
+```ts
+import { resolvePrompt } from '@/server/ai/prompts';
+const prompt = resolvePrompt('openai', 'stance_source', 'v1', overrideString);
+```
+
 
 ---
 
