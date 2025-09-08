@@ -7,8 +7,11 @@ import path from 'node:path';
 import process from 'node:process';
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
-import { parser } from 'stream-json';
-import { streamArray } from 'stream-json/streamers/StreamArray.js';
+// stream-json is CommonJS; use default import and destructure
+import StreamJson from 'stream-json';
+const { parser } = StreamJson;
+import StreamArray from 'stream-json/streamers/StreamArray';
+const { streamArray } = StreamArray;
 
 dotenv.config({ path: path.resolve(process.cwd(), '..', '.env') });
 

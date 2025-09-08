@@ -33,6 +33,11 @@ db-ingest-mbfc:
 	@echo "Verifying row count..."
 	docker exec -it mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) -e "SELECT COUNT(*) AS rows FROM mbfc.mbfc_sources;"
 
+# Convenience: init schema + ingest in one go
+db-seed:
+	$(MAKE) db-init
+	$(MAKE) db-ingest-mbfc
+
 # Automated full setup
 setup:
 	@echo "Setting up environment (frontend + mysql)..."
