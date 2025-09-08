@@ -75,3 +75,34 @@ export function heuristicSentiment(commentTexts: string[]) {
   if (pos > neg * 1.2) return "positive";
   return "neutral";
 }
+
+/**
+ * Compute lean metrics from discussion samples.
+ * Returns raw lean (-5..+5), normalized (0..10), and an overall score object with label and confidence.
+ * Confidence may be overridden by caller; default heuristic uses sample count.
+ */
+export function computeLean(
+  samples: Array<{ bias?: string; sentiment: 'positive'|'negative'|'neutral'; engagement: number }>,
+  confidenceHint?: number
+) {
+  let totalWeighted = 0;
+  let totalEngagement = 0;
+  for (const s of samples) {
+    const postBiasScore = mapBiasToScore(s.bias);
+    const mult = mapSentimentToMultiplier(s.sentiment);
+    if (mult === 0) continue;
+    const postLean = postBiasScore * mult;
+    totalWeighted += postLean * s.engagement;
+    totalEngagement += s.engagement;
+  }
+  let leanRaw = 0;
+  let leanNormalized = 5;
+  if (totalEngagement > 0) {
+    const avgRaw = totalWeighted / totalEngagement;
+    leanRaw = avgRaw;
+    leanNormalized = normalizeOverall(avgRaw);
+  }
+  const confidence = typeof confidenceHint === 'number' ? confidenceHint : Math.min(0.95, 0.4 + 0.07 * samples.length);
+  const overallScore = { score: leanNormalized, label: labelForScore(leanNormalized), confidence };
+  return { leanRaw, leanNormalized, overallScore };
+}

@@ -3,8 +3,10 @@ import { getMBFCBiasForUrls, MBFCResult } from '@/server/mbfc-signal';
 import { analyzeSentiment, type SentimentResult } from '@/server/ai/adapter';
 import type { PromptKey } from '@/server/ai/prompts';
 import { getRedditAccessToken, fetchSubredditTopPosts, fetchCommentsWithBackoff, extractTopLevelCommentBodies, type RedditPostNode } from '@/server/reddit';
-import { labelForScore, mapBiasToScore, mapSentimentToMultiplier, normalizeOverall, heuristicSentiment } from '@/server/scoring';
+import { labelForScore, heuristicSentiment, computeLean } from '@/server/scoring';
+import { getCache, setCache } from '@/server/cache';
 import type { DiscussionSample } from '@/lib/types';
+import { isSSERedditEvent, isSSEMBFCEvent, isSSEDiscussionEvent } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
@@ -32,9 +34,38 @@ export async function GET(req: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        function summarizeForLog(name: string, data: unknown) {
+          try {
+            if (name === 'reddit' && isSSERedditEvent(data)) {
+              return { subreddit: data.subreddit, totalPosts: data.totalPosts };
+            }
+            if (name === 'mbfc' && isSSEMBFCEvent(data)) {
+              const biasKeys = Object.keys(data.biasBreakdown || {}).length;
+              return { urlsChecked: data.urlsChecked, biasKeys };
+            }
+            if (name === 'discussion' && isSSEDiscussionEvent(data)) {
+              const ds = data.discussionSignal;
+              return {
+                progress: data.progress,
+                samples: Array.isArray(ds?.samples) ? ds.samples.length : undefined,
+                leanNormalized: ds?.leanNormalized,
+                label: ds?.label,
+                cached: data.cached,
+              };
+            }
+            if (name === 'done' || name === 'error') return data;
+            if (typeof data === 'object' && data !== null) return Object.keys(data as Record<string, unknown>);
+            return data;
+          } catch {
+            return 'summary_failed';
+          }
+        }
+
         function writeEvent(name: string, data: unknown) {
           const payload = `event: ${name}\n` + `data: ${JSON.stringify(data)}\n\n`;
           controller.enqueue(encoder.encode(payload));
+          // Log a concise summary to avoid noisy output
+          console.log('[SSE] emit', name, summarizeForLog(name, data));
         }
 
         try {
@@ -87,6 +118,16 @@ export async function GET(req: NextRequest) {
           }
           console.log('[SSE] Phase C candidates:', candidates.length);
 
+          // Cache check: key derived from subreddit + candidate permalinks
+          const keyParts = [subreddit, REDDIT_TOP_TIME, String(DISCUSSION_LIMIT), ...candidates.map(c => c?.data?.permalink || '')];
+          const cacheKey = 'disc:' + keyParts.join('|');
+          const cached = getCache<{ discussionSignal: { samples: DiscussionSample[]; leanRaw: number; leanNormalized: number; label: string }, overallScore: { score: number; label: string; confidence: number } }>(cacheKey);
+          if (cached) {
+            writeEvent('discussion', { ...cached, progress: { done: candidates.length, total: candidates.length }, cached: true });
+            writeEvent('done', { ok: true, cached: true });
+            return;
+          }
+
           const total = candidates.length;
           let done = 0;
           const samples: DiscussionSample[] = [];
@@ -121,26 +162,16 @@ export async function GET(req: NextRequest) {
           while (pending.length) {
             const batch = pending.splice(0, Math.min(DISCUSSION_BATCH_SIZE, pending.length));
             await Promise.all(batch.map(runOne));
-            // compute progressive lean
-            let totalWeighted = 0; let totalEngagement = 0;
-            for (const s of samples) {
-              const postBiasScore = mapBiasToScore(s.bias);
-              const mult = mapSentimentToMultiplier(s.sentiment);
-              if (mult === 0) continue;
-              const postLean = postBiasScore * mult;
-              totalWeighted += postLean * s.engagement;
-              totalEngagement += s.engagement;
-            }
-            let leanRaw = 0; let leanNormalized = 5;
-            if (totalEngagement > 0) {
-              const avgRaw = totalWeighted / totalEngagement;
-              leanRaw = avgRaw;
-              leanNormalized = normalizeOverall(avgRaw);
-            }
-            const overallScore = { score: leanNormalized, label: labelForScore(leanNormalized), confidence: Math.min(0.95, 0.4 + 0.07 * samples.length) };
+            // compute progressive lean (DRY)
+            const { leanRaw, leanNormalized, overallScore } = computeLean(samples);
             writeEvent('discussion', { discussionSignal: { samples, leanRaw, leanNormalized, label: overallScore.label }, overallScore, progress: { done, total } });
             console.log('[SSE] Phase C progress', done, '/', total);
           }
+
+          // Compute final and cache it for a short period (e.g., 10 minutes)
+          const { leanRaw, leanNormalized, overallScore } = computeLean(samples);
+          setCache(cacheKey, { discussionSignal: { samples, leanRaw, leanNormalized, label: overallScore.label }, overallScore }, 10 * 60 * 1000);
+
 
           writeEvent('done', { ok: true });
           console.log('[SSE] done');
@@ -158,8 +189,8 @@ export async function GET(req: NextRequest) {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache, no-transform',
-  'Connection': 'keep-alive',
-  'X-Accel-Buffering': 'no' // hint proxies to not buffer SSE
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no' // hint proxies to not buffer SSE
       }
     });
   } catch {

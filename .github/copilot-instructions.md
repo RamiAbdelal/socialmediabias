@@ -63,3 +63,26 @@ Goal: Make agents productive fast with this repo’s actual architecture and wor
 - `stream-json` is CJS: import with default + destructure and include `.js` suffix for subpaths (see importer).
 
 If anything is unclear or cross-cutting, check `context.md`. Propose doc edits in PRs when you change behavior (prompts, SSE, DB schema, Makefile targets).
+
+### Non-negotiables (must follow, every task)
+- DRY first: extract helpers instead of repeating logic. If you copy code, stop and factor. Prefer a single function used in both places.
+- Centralize config and constants at the file top. Do not inline magic numbers in multiple spots.
+- Keep API routes thin; move logic into `src/server/*` helpers.
+- Respect alias paths (`@/*`). Do not hardcode relative traversals when an alias exists.
+- JSON-only from AI providers; never accept free-form text. Use `resolvePrompt` and strict parsing.
+- SSE endpoints must send `error` then close on failure; include `X-Accel-Buffering: no`.
+- DB host rule: Docker→`mysql`, local dev→`127.0.0.1`. Do not regress this.
+- Type safety: Do NOT use `any` or type assertions (no `as Type`). Prefer narrowing and shared types.
+- Shared types only: import types from `frontend/src/lib/types.ts`. If a type is missing, add it there first.
+
+### End-of-task quality gates (block completion if any fail)
+1) Build/Lint: ensure no TS/ESLint errors in changed files.
+2) DRY audit: no duplicate logic introduced. If similar code exists, extract a helper (e.g., `computeDiscussionFinal()` instead of recomputing blocks).
+3) Tests or tiny smoke: for public behavior change, add/adjust at least one minimal test or run a quick smoke and paste the relevant output.
+4) Docs: update `context.md` and README when changing flows (SSE phases, prompts, DB, Makefile).
+5) Env safety: confirm `.env.local` vs container env expectations when touching DB/AI keys.
+ 6) Typesafe: no `any`, no `as` assertions; new shapes live in `src/lib/types.ts`.
+
+### DRY example (what to do)
+- Bad: recomputing lean metrics in multiple places.
+- Good: create `computeLean(samples)` returning `{ leanRaw, leanNormalized, overallScore }` and use it both for progressive emits and final caching.

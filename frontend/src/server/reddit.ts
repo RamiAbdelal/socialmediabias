@@ -3,7 +3,7 @@ import type { Reddit } from "@/lib/types";
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0; // epoch ms
 
-const USER_AGENT = () => process.env.REDDIT_USER_AGENT || "smb-mvp/0.1";
+const USER_AGENT = process.env.REDDIT_USER_AGENT || "smb-mvp/0.1";
 
 /** Obtain a short-lived app OAuth token for Reddit API (cached briefly). */
 export async function getRedditAccessToken(): Promise<string> {
@@ -19,7 +19,7 @@ export async function getRedditAccessToken(): Promise<string> {
     headers: {
       Authorization: `Basic ${creds}`,
       "Content-Type": "application/x-www-form-urlencoded",
-      "User-Agent": USER_AGENT(),
+      "User-Agent": USER_AGENT,
     },
     body: "grant_type=client_credentials",
   });
@@ -38,7 +38,7 @@ export type RedditPostNode = {
 export async function fetchSubredditTopPosts(subredditPath: string, token: string, limit = 25, time = "month") {
   const apiUrl = `https://oauth.reddit.com/${subredditPath}/top.json?limit=${limit}&t=${time}`;
   const apiRes = await fetch(apiUrl, {
-    headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT() },
+    headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT },
   });
   if (!apiRes.ok) throw new Error("Failed to fetch subreddit");
   const apiJson = await apiRes.json();
@@ -67,7 +67,7 @@ export async function fetchCommentsWithBackoff(permalink: string, token: string,
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT() }, signal: controller.signal });
+      const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT }, signal: controller.signal });
       clearTimeout(t);
       if (r.ok) {
         try { return (await r.json()) as Reddit.APIResponse; } catch { return null; }
