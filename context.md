@@ -679,29 +679,30 @@ Create `/etc/nginx/sites-available/socialmediabias`:
 
 ```nginx
 server {
-    listen 80;
-    server_name smb.rami-abdelal.co.uk;
+  listen 80;
+  server_name smb.rami-abdelal.co.uk;
 
-    location / {
-        proxy_pass http://localhost:9005;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+  # All traffic goes to Next.js (frontend) on :9005
+  location / {
+    proxy_pass http://localhost:9005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
 
-    location /api/ {
-  proxy_pass http://localhost:9006/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-  # Important for Server-Sent Events (SSE)
-  proxy_buffering off;
-  chunked_transfer_encoding on;
-  proxy_read_timeout 3600s;
-  add_header X-Accel-Buffering no;
-    }
+  # Optional: explicit SSE location (same upstream, buffering off)
+  location /api/analyze/stream {
+    proxy_pass http://localhost:9005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    chunked_transfer_encoding on;
+    proxy_read_timeout 3600s;
+    add_header X-Accel-Buffering no;
+  }
 }
 ```
 

@@ -9,7 +9,7 @@ dev:
 dev-logs:
 	docker compose logs -f
 
-# Database operations
+## Database operations (no backend – Next.js handles APIs)
 db-reset:
 	docker compose down mysql
 	docker volume rm socialmediabias_mysql_data || true
@@ -18,36 +18,29 @@ db-reset:
 	@until docker exec mysql mysqladmin ping -h localhost -u root -p$(MYSQL_ROOT_PASSWORD) --silent; do sleep 2; done
 	@echo "MySQL is ready!"
 
-db-fetch-mbfc:
-	docker exec backend npm run fetch-mbfc
+# Initialize schema from database/init.sql
+db-init:
+	@echo "Applying schema from database/init.sql..."
+	docker exec -i mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) < database/init.sql
+	@echo "Schema applied."
 
-db-load-mbfc:
-	docker exec backend npm run migration:run
-	docker exec backend npm run seed
-
-db-setup: db-reset
-	@echo "Starting backend..."
-	docker compose up backend -d
-	@echo "Waiting for backend to be ready..."
-	@until curl -s http://localhost:9006 > /dev/null; do sleep 2; done
-	@echo "Running migrations..."
-	docker exec backend npm run migration:run
-	@echo "Seeding MBFC data..."
-	docker exec backend npm run seed
-
-db-update: db-fetch-mbfc db-load-mbfc
+# Ingest MBFC JSON using the importer script inside the frontend container
+db-ingest-mbfc:
+	@echo "Ensuring frontend is running..."
+	docker compose up -d frontend
+	@echo "Running importer..."
+	docker exec -it frontend sh -lc 'node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json'
+	@echo "Verifying row count..."
+	docker exec -it mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) -e "SELECT COUNT(*) AS rows FROM mbfc.mbfc_sources;"
 
 # Automated full setup
 setup:
-	@echo "Setting up complete environment..."
-	docker compose up -d
-	@echo "Waiting for services to be ready..."
+	@echo "Setting up environment (frontend + mysql)..."
+	docker compose up -d --build
+	@echo "Waiting for MySQL to be ready..."
 	@until docker exec mysql mysqladmin ping -h localhost -u root -p$(MYSQL_ROOT_PASSWORD) --silent; do sleep 2; done
-	@until curl -s http://localhost:9006 > /dev/null; do sleep 2; done
-	@echo "Running migrations and seeding..."
-	docker exec backend npm run migration:run
-	docker exec backend npm run seed
-	@echo "Setup complete! Frontend: http://localhost:9005"
+	$(MAKE) db-init
+	@echo "Setup complete! Frontend: $(URL_LOCAL)"
 
 db-export:
 	docker exec mysql mysqldump -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) > backup.sql
@@ -78,7 +71,6 @@ clean:
 health:
 	@echo "Checking services..."
 	@curl -s http://localhost:9005 > /dev/null && echo "Frontend: OK" || echo "Frontend: FAILED"
-	@curl -s http://localhost:9006 > /dev/null && echo "Backend: OK" || echo "Backend: FAILED"
 	@docker exec mysql mysqladmin ping -h localhost -u root -p$(MYSQL_ROOT_PASSWORD) > /dev/null && echo "MySQL: OK" || echo "MySQL: FAILED"
 
 # Open MySQL shell with .env credentials
@@ -87,8 +79,7 @@ mysql-shell:
 
 # Backend reload
 backend-reload:
-	@echo "Reloading backend..."
-	docker compose down backend && docker compose up backend -d --build
+	@echo "(No backend) – skipping."
 
 # Help
 help:
@@ -96,10 +87,8 @@ help:
 	@echo "  dev          - Start development environment"
 	@echo "  dev-logs     - Show development logs"
 	@echo "  db-reset     - Reset database"
-	@echo "  db-fetch-mbfc - Fetch fresh MBFC data from API"
-	@echo "  db-load-mbfc - Load MBFC data into database"
-	@echo "  db-setup     - Reset and load MBFC data"
-	@echo "  db-update    - Fetch fresh data and reload database"
+	@echo "  db-init      - Apply schema from database/init.sql"
+	@echo "  db-ingest-mbfc - Ingest MBFC JSON into MySQL"
 	@echo "  db-export    - Export database to backup.sql"
 	@echo "  db-import    - Import database from backup.sql"
 	@echo "  deploy-local - Deploy locally"

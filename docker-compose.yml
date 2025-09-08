@@ -17,6 +17,8 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
     ports:
       - "${DOCKER_PORT_FRONTEND}:80"
+    volumes:
+      - ./database:/app/database
     depends_on:
       - mysql
     env_file:

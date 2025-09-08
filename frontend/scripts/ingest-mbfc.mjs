@@ -102,8 +102,9 @@ async function main() {
       }
     });
     pipeline.on('end', () => {
+      const remainder = batch.length;
       flush()
-        .then(() => { total += batch.length; console.log(`\nDone. Total inserted: ${total}`); resolve(); })
+        .then(() => { total += remainder; console.log(`\nDone. Total inserted: ${total}`); resolve(); })
         .catch(reject);
     });
     pipeline.on('error', reject);
