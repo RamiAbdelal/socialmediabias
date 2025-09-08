@@ -31,7 +31,7 @@ db-ingest-mbfc:
 	@echo "Running importer..."
 	docker exec -it frontend sh -lc 'node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json'
 	@echo "Verifying row count..."
-	docker exec -it mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) -e "SELECT COUNT(*) AS rows FROM mbfc.mbfc_sources;"
+	docker exec -it mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) -e "SELECT COUNT(*) AS count FROM mbfc.mbfc_sources;"
 
 # Convenience: init schema + ingest in one go
 db-seed:
