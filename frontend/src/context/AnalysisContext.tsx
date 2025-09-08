@@ -71,7 +71,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setError(null);
     setResult(null);
     setPhase('analyzing');
-  setDiscussionProgress(null);
+    setDiscussionProgress(null);
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
     try {
       const src = new EventSource(`/api/analyze/stream?redditUrl=${encodeURIComponent(url)}`);
@@ -79,9 +79,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
       src.addEventListener('reddit', (ev: MessageEvent) => {
         const data = JSON.parse(ev.data);
-  // debug log
-  // eslint-disable-next-line no-console
-  console.log('[SSE:event] reddit', data);
+        console.log('[SSE:event] reddit', data);
         setResult(prev => ({
           ...(prev || {}),
           communityName: data.subreddit,
@@ -95,8 +93,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
       src.addEventListener('mbfc', (ev: MessageEvent) => {
         const data = JSON.parse(ev.data);
-  // eslint-disable-next-line no-console
-  console.log('[SSE:event] mbfc', data);
+        console.log('[SSE:event] mbfc', data);
         setResult(prev => ({
           ...(prev || {}),
           biasBreakdown: data.biasBreakdown,
@@ -109,8 +106,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
       src.addEventListener('discussion', (ev: MessageEvent) => {
         const data = JSON.parse(ev.data);
-  // eslint-disable-next-line no-console
-  console.log('[SSE:event] discussion', data?.progress);
+        console.log('[SSE:event] discussion', data?.progress);
         setResult(prev => ({
           ...(prev || {}),
           discussionSignal: data.discussionSignal,
@@ -121,18 +117,16 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         }
       });
 
-      src.addEventListener('done', () => {
-  // eslint-disable-next-line no-console
-  console.log('[SSE:event] done');
+    src.addEventListener('done', () => {
+      console.log('[SSE:event] done');
         setPhase('ready');
         setIsLoading(false);
-  setDiscussionProgress(null);
+        setDiscussionProgress(null);
         src.close();
         esRef.current = null;
       });
 
       src.addEventListener('error', () => {
-        // eslint-disable-next-line no-console
         console.warn('[SSE:event] error');
         setError('Analysis failed');
         setIsLoading(false);
@@ -149,7 +143,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-  <AnalysisContext.Provider value={{ result, error, isLoading, analyzeCommunity, communityName, setCommunityName, phase, discussionProgress }}>
+    <AnalysisContext.Provider value={{ result, error, isLoading, analyzeCommunity, communityName, setCommunityName, phase, discussionProgress }}>
       {children}
     </AnalysisContext.Provider>
   );

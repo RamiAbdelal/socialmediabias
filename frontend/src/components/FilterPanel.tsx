@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionItem } from '@/components/ui/accordion';
 import type { RedditSignal } from '@/lib/types';
@@ -48,7 +48,7 @@ interface OptionCount { value: string; count: number }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({ allDetails, biasBreakdown, filters, dispatch }) => {
   // Compute generic option counts (excluding bias, where we can use biasBreakdown if supplied)
-  const makeCounts = (getter: (d: RedditSignal) => string | undefined) => {
+  const makeCounts = useCallback((getter: (d: RedditSignal) => string | undefined) => {
     const map = new Map<string, number>();
     for (const d of allDetails) {
       const v = getter(d);
@@ -56,20 +56,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ allDetails, biasBreakd
       map.set(v, (map.get(v) || 0) + 1);
     }
     return Array.from(map.entries()).map(([value, count]) => ({ value, count })).sort((a,b) => b.count - a.count);
-  };
+  }, [allDetails]);
 
-  const credibilityCounts = useMemo(() => makeCounts(d => d.credibility), [allDetails]);
-  const factualCounts = useMemo(() => makeCounts(d => d.factual_reporting), [allDetails]);
-  const countryCounts = useMemo(() => makeCounts(d => d.country), [allDetails]);
-  const mediaTypeCounts = useMemo(() => makeCounts(d => d.media_type), [allDetails]);
-  const sourceUrlCounts: OptionCount[] = useMemo(() => makeCounts(d => d.source_url), [allDetails]);
+  const credibilityCounts = useMemo(() => makeCounts(d => d.credibility), [makeCounts]);
+  const factualCounts = useMemo(() => makeCounts(d => d.factual_reporting), [makeCounts]);
+  const countryCounts = useMemo(() => makeCounts(d => d.country), [makeCounts]);
+  const mediaTypeCounts = useMemo(() => makeCounts(d => d.media_type), [makeCounts]);
+  const sourceUrlCounts: OptionCount[] = useMemo(() => makeCounts(d => d.source_url), [makeCounts]);
   const biasCounts: OptionCount[] = useMemo(() => {
     if (biasBreakdown) {
       return Object.entries(biasBreakdown).map(([value, count]) => ({ value, count }))
         .sort((a,b) => b.count - a.count);
     }
     return makeCounts(d => d.bias);
-  }, [biasBreakdown, allDetails]);
+  }, [biasBreakdown, makeCounts]);
 
   const anyFilter = Object.values(filters).some(Boolean);
 

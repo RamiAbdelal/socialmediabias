@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ogImage: null }, { status: 200 });
     }
     return NextResponse.json({ ogImage }, { status: 200 });
-  } catch (e) {
+  } catch {
     return NextResponse.json({ error: "Fetch error" }, { status: 500 });
   }
 }

@@ -77,7 +77,6 @@ export async function fetchCommentsWithBackoff(permalink: string, token: string,
       const isRateLimited = r.status === 429 || (remaining !== null && remaining <= 1);
       if (isRateLimited && attempt < maxRetries) {
         const wait = resetSec && resetSec > 0 ? jitter(resetSec * 1000) : jitter(computeBackoff(attempt));
-        // eslint-disable-next-line no-console
         console.warn("[SSE] reddit comments ratelimited, backing off ms=", wait, "attempt", attempt + 1, "/", maxRetries + 1);
         await sleep(wait);
         continue;

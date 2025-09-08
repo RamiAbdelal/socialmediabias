@@ -3,7 +3,6 @@ import React, { useReducer, useMemo, useState, useEffect } from 'react';
 import { useAnalysis } from '../context/AnalysisContext';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import RedditPostsSection from './RedditPostsSection';
 import RedditSignalCard from './RedditSignalCard';
 import { FilterPanel, filterReducer, initialFilterState, applyFilters } from './FilterPanel';
 import type { MBFCDetail, SubredditResultsProps, RedditSignal } from '../lib/types';
@@ -194,7 +193,6 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
           </div>
         </Card>
       )}
-      {result && result.redditPosts && result.redditPosts.length > 0 && (<RedditPostsSection result={result} />)}
     </div>
   );
 };
