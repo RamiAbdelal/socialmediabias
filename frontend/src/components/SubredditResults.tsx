@@ -11,7 +11,7 @@ import { Reddit } from '../lib/types';
 import { isImageUrl, isGalleryUrl, defaultRedditSignal, getBiasColor, getConfidenceColor } from '../lib/utils';
 
 const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, error, isLoading }) => {
-  const { communityName } = useAnalysis();
+  const { communityName, phase, discussionProgress } = useAnalysis();
   const [filters, dispatch] = useReducer(filterReducer, initialFilterState);
 
   // Merge MBFC + Reddit post data
@@ -74,7 +74,15 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
           </div>
         </div>
       )}
-      {isLoading && <div className="text-lg mb-8 text-muted-foreground">Analyzing {communityName}...</div>}
+      {isLoading && (
+        <div className="text-lg mb-8 text-muted-foreground">
+          {phase === 'digging' ? (
+            <>Digging deeper for r/{communityName}... {discussionProgress ? `(${discussionProgress.done}/${discussionProgress.total})` : ''}</>
+          ) : (
+            <>Analyzing {communityName}...</>
+          )}
+        </div>
+      )}
       {result && result.overallScore && (
   <Card className="p-0 overflow-hidden bg-card/70 border border-border/60 backdrop-blur-sm">
           <CardHeader className="grid grid-cols-1 md:grid-cols-1 gap-6 p-6 pb-4">

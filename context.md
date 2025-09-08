@@ -51,7 +51,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 *All other signals and adapters are deferred until after MVP.*
 
 2. **Discussion / Comment Sentiment Signal (Heuristic v0)**
-  * Fetches a capped subset (currently up to 8) of posts that have MBFC-mapped external URLs.
+  * Fetches a capped subset (currently up to 10) of posts that have MBFC-mapped external URLs.
   * Pulls up to 20 top-level comments (depth 1) per post via Reddit OAuth.
   * Applies lightweight lexical stance heuristic (positive / negative token lists) to approximate community agreement or disagreement with the linked source.
   * Computes per-post engagement weight: `engagement = num_comments + score/100`.
@@ -354,7 +354,7 @@ Filters are additive AND conditions across: Bias, Credibility, Factual Reporting
 | Auth | None | API key for backend | User accounts / personalization |
 
 ---
-Document updated: 2025-08-28 (Added heuristic Discussion Signal + combined scoring v0)
+Document updated: 2025-09-08 (SSE progressive streaming + backoff on Reddit comments; NGINX SSE notes)
 Maintainer: (update with your name/contact)
 
 ---
@@ -689,11 +689,16 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://localhost:9006/;
+  proxy_pass http://localhost:9006/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+  # Important for Server-Sent Events (SSE)
+  proxy_buffering off;
+  chunked_transfer_encoding on;
+  proxy_read_timeout 3600s;
+  add_header X-Accel-Buffering no;
     }
 }
 ```
@@ -706,6 +711,37 @@ sudo systemctl reload nginx
 ```
 
 ---
+
+## 🔄 Progressive Streaming (SSE) Flow
+
+Endpoint: `GET /api/analyze/stream?redditUrl=https://www.reddit.com/r/<subreddit>`
+
+Phases emitted as SSE events:
+- `reddit`: Initial batch of subreddit top posts (title, url, permalink, author, score). Enables UI to render quickly.
+- `mbfc`: MBFC lookup results for extracted external URLs. Includes `biasBreakdown`, `details`, and a provisional `overallScore` placeholder.
+- `discussion`: Repeated event as we analyze up to 10 candidate posts in batches of 2. Each emit contains `discussionSignal` (samples, leanRaw, leanNormalized, label), updated `overallScore`, and `progress { done, total }`.
+- `done`: Terminal event indicating completion.
+- `error`: If an unrecoverable error occurs, emits `{ message }` then stream closes.
+
+Notes:
+- Phase C (discussion) runs even when MBFC yields zero matches; in that case the AI prompt is anchored toward the POST TITLE and uses comment bodies + title for stance classification.
+- Confidence for the combined score scales with sample count, capped at 0.95.
+
+### Reddit API Backoff & Rate Limit Handling
+- Comment fetches use OAuth with 10s request timeout and exponential backoff with jitter on errors.
+- Specifically handles:
+  - HTTP 429 or `x-ratelimit-remaining <= 1`: waits for `x-ratelimit-reset` seconds when present, otherwise uses exponential backoff.
+  - HTTP 5xx: retried with backoff up to 4 additional attempts.
+  - Network/abort errors: retried with backoff up to 4 additional attempts.
+- Concurrency: small fixed pool (3) with 100–300ms jitter between tasks to smooth burstiness.
+
+### Client Consumption
+- The client uses `EventSource` to consume events and updates UI phases: “Analyzing…”, “Digging deeper… (n/10)”, then ready.
+- `SubredditResults.tsx` renders progressively; `AnalysisContext` merges incoming partials.
+
+### Proxy Requirements (SSE)
+- Ensure NGINX disables buffering for the API location handling SSE, or set `X-Accel-Buffering: no` upstream (we do both as belt-and-suspenders).
+- Long `proxy_read_timeout` avoids idle disconnects during long-running analyses.
 
 ## 🛠️ Makefile Automation (To Be Implemented)
 
