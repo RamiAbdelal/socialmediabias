@@ -11,11 +11,11 @@ export const runtime = 'nodejs';
 // ----- Config (edit here) -----
 const REDDIT_TOP_LIMIT = 25;
 const REDDIT_TOP_TIME = 'month' as const;
-const DISCUSSION_LIMIT = 10;         // total posts for Phase C
-const DISCUSSION_BATCH_SIZE = 2;     // emit after each batch of N
+const DISCUSSION_LIMIT = 6;         // total posts for Phase C
+const DISCUSSION_BATCH_SIZE = 3;     // emit after each batch of N
 const COMMENT_TIMEOUT_MS = 10_000;   // per-thread fetch timeout
-const JITTER_MIN_MS = 100;           // min per-task jitter to smooth bursts
-const JITTER_MAX_MS = 300;           // max per-task jitter to smooth bursts
+const JITTER_MIN_MS = 50;           // min per-task jitter to smooth bursts
+const JITTER_MAX_MS = 200;           // max per-task jitter to smooth bursts
 // --------------------------------
 
 export async function GET(req: NextRequest) {
