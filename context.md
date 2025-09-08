@@ -71,8 +71,8 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 |                            | Displays: bias score (0–10), label (e.g., "center-left") |
 |                            | Shows: signal breakdown, source examples, AI summaries |
 |                            | Expandable UI for future metrics (Credibility, Demographics, etc.) |
-| **Backend**                | Node.js API in plain JavaScript (no TypeScript) |
-|                            | Simple, minimal code for fast MVP |
+| **Backend**                | Removed: all APIs consolidated into Next.js App Router |
+|                            | Single service (Next.js) behind NGINX |
 | **Platform Integration**   | Reddit API (MVP), Instagram/X (future) |
 |                            | Fetch top 50 posts from the last 30 days |
 |                            | Extract: posts, comments, external links, images |
@@ -171,7 +171,7 @@ socialmediabias/
 ### 📁 Project Folder Structure (as of August 2025)
 ```
 frontend/                # Next.js 15 app (App Router). UI, API routes, state orchestration.
-backend/                 # Express.js lightweight API service (MBFC signal + Reddit fetch)
+backend/                 # (Removed) legacy Express API — use Next.js API routes instead
 database/                # DB seed/init artifacts (SQL + MBFC JSON snapshot)
 nginx/                   # Reverse proxy configuration
 docker-compose.yml       # Orchestrates frontend, backend, MySQL
@@ -185,7 +185,7 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ### 🔎 File-by-File Responsibilities (Authoritative Inventory)
 
 #### Root Level
-- `docker-compose.yml` – Spins up services: `frontend` (Next.js), `backend` (Express), `mysql`. Wires env vars, mounts the DB seed volume.
+- `docker-compose.yml` – Spins up services: `frontend` (Next.js) and `mysql`. Wires env vars, mounts the DB volume.
 - `Makefile` – Placeholder. Planned targets: build, deploy, db export/import, logs, clean, nginx reload.
 - `context.md` – Canonical project knowledge (architecture + decisions). Update whenever adding/modifying behavior.
 - `README.md` – External-facing concise overview & quickstart. Should not duplicate deep architecture detail.
@@ -194,19 +194,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 - `.gitignore` – Ignores build artifacts, local env files, dependency folders.
 - `prompt.md` – (If present) May contain AI prompt / experimentation text (not production logic).
 
-#### `backend/`
-- `backend/Dockerfile` – Multi-stage (expected) container build for production deployment of the API.
-- `backend/package.json` – Declares Express + mysql2 + node-fetch dependencies, scripts (start, dev).
-- `backend/index.js` – Bootstrapping entry (currently logs a startup message). Could in future delegate to `app/index.js`.
-- `backend/app/index.js` – Main Express server: CORS config, health endpoint, `/api/analyze` POST route (fetches subreddit posts via Reddit OAuth, enriches with MBFC lookup), response assembly.
-- `backend/app/mbfc-signal.js` – Implements `getMBFCBiasForUrls(urls, dbConfig)` performing domain normalization and flexible suffix matching against `mbfc_sources` table.
-- `backend/app/signal/*` – Placeholder/future specialization modules (`reddit-link.js`, `reddit-text.js`, etc.) for planned multi-signal architecture (currently unused or skeletal).
-
-##### Backend Runtime Data Flow
-1. Client sends subreddit URL to `/api/analyze`.
-2. Backend obtains OAuth token, fetches top posts.
-3. Extracts outbound URLs → passes to `getMBFCBiasForUrls`.
-4. Builds `AnalysisResult` structure (MBFC bias breakdown + raw posts) -> returns JSON consumed by frontend.
+#### `backend/` (removed)
+Legacy Express backend decommissioned. All endpoints live in `frontend/src/app/api/*` under Next.js App Router.
 
 #### `database/`
 - `init.sql` – MySQL initialization (schema + table creation + potential seed load). Ensure idempotency for repeated container starts.
@@ -236,6 +225,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ##### Frontend API Routes (`src/app/api/`)
 - `og-image/route.ts` – Fetches target URL HTML, extracts `<meta property="og:image" ...>` and returns `ogImage` (used for link previews in cards).
 - `reddit-comment/route.ts` – Given a Reddit comment permalink, fetches `<permalink>.json` from Reddit and returns raw JSON inside `{ body }`.
+- `analyze/route.ts` – Non-streamed analysis endpoint.
+- `analyze/stream/route.ts` – SSE progressive analysis (reddit → mbfc → discussion → done).
 
 ##### React Context & State
 - `context/AnalysisContext.tsx` – Central client-side state store (community name, loading, results, errors) to avoid prop drilling and support multi-route navigation.
@@ -254,10 +245,10 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 - `lib/popularSubreddits.js` – Static list used for UI selection/autocomplete.
 
 ### 🔄 Data Contracts
-The backend returns an object conforming loosely to `AnalysisResult`:
+The server routes return an object conforming loosely to `AnalysisResult`:
 ```ts
 interface AnalysisResult {
-  subreddit?: string;            // (backend) also mapped to communityName client-side
+  subreddit?: string;            // also mapped to communityName client-side
   communityName?: string;        // (frontend merged)
   platform?: 'reddit';
   overallScore?: { score: number; label: string; confidence: number };
@@ -419,26 +410,23 @@ URL_PRODUCTION=https://smb.rami-abdelal.co.uk
 
 ## 📦 Docker Compose Configuration
 
-The `docker-compose.yml` orchestrates three services:
+The `docker-compose.yml` orchestrates two services:
 
 ### Frontend Service
 - **Image**: Built from `./frontend/Dockerfile`
 - **Port**: `${DOCKER_PORT_FRONTEND}:80` (default: 9005:80)
 - **Environment**: `APP_ENV`, `SITE_URL`
-- **Dependencies**: Backend service
-
-### Backend Service  
-- **Image**: Built from `./backend/Dockerfile`
-- **Port**: `${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}` (default: 9006:3001)
-- **Environment**: All API keys, MySQL connection, site URL
 - **Dependencies**: MySQL service
+
+### Backend Service (removed)
+Legacy Express backend removed; Next.js handles all API endpoints.
 
 ### MySQL Service
 - **Image**: `mysql:8.0`
 - **Port**: `3306:3306` (for local development access)
 - **Volumes**: 
   - `mysql_data:/var/lib/mysql` (persistent data)
-  - `./database/init.sql:/docker-entrypoint-initdb.d/init.sql` (initialization)
+  # init.sql not auto-mounted; run once manually or use importer
 - **Environment**: Root password, database name, user credentials
 
 ---
@@ -463,13 +451,14 @@ cp .env.example .env  # Create from template
 
 ### 3. Database Setup
 ```bash
-# Now using TypeORM (Active Record) for schema, migrations and seeding
-# Run services
+# Bring up services
 docker compose up -d
 
-# Run migrations and seed (inside backend container)
-docker exec backend npm run migration:run
-docker exec backend npm run seed
+# Create schema (one-time)
+docker exec -i mysql mysql -u root -p$MYSQL_ROOT_PASSWORD < /home/ubuntu/socialmediabias/database/init.sql
+
+# Import MBFC JSON (copy file to VPS first)
+docker exec -it frontend sh -lc "node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json"
 ```
 
 ### 4. Development
@@ -479,7 +468,6 @@ docker-compose up --build
 
 # Or start individual services
 docker-compose up frontend
-docker-compose up backend
 docker-compose up mysql
 ```
 
