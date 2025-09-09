@@ -2,13 +2,14 @@
 "use client";
 
 import { useAnalysis } from "../context/AnalysisContext";
+import { StatusMessage } from "../components/StatusMessage";
 
 export default function HomePage() {
-  const { error, isLoading } = useAnalysis();
+
+  const { error, isLoading, communityName, phase, discussionProgress } = useAnalysis();
 
   return (
     <main>
-      {isLoading && <p className="text-gray-400">Analysing subreddit...</p>}
       {error && <p className="text-red-500">{error}</p>}
     </main>
   );

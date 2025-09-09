@@ -42,8 +42,11 @@ export function normalizeOverall(avg: number) {
 
 /** Simple lexical heuristic for sentiment across a list of comment texts. */
 export function heuristicSentiment(commentTexts: string[]) {
+
   if (!commentTexts.length) return "neutral";
+
   const joined = commentTexts.join("\n").toLowerCase();
+
   const negativeWords = [
     "propaganda",
     "trash",
@@ -57,6 +60,7 @@ export function heuristicSentiment(commentTexts: string[]) {
     "bad take",
     "cope",
   ];
+
   const positiveWords = [
     "agree",
     "true",
@@ -66,13 +70,16 @@ export function heuristicSentiment(commentTexts: string[]) {
     "well said",
     "makes sense",
   ];
-  let neg = 0,
-    pos = 0;
+
+  let neg = 0, pos = 0;
+
   for (const w of negativeWords) if (joined.includes(w)) neg++;
   for (const w of positiveWords) if (joined.includes(w)) pos++;
+
   if (neg === 0 && pos === 0) return "neutral";
   if (neg > pos * 1.2) return "negative";
   if (pos > neg * 1.2) return "positive";
+  
   return "neutral";
 }
 
@@ -82,11 +89,14 @@ export function heuristicSentiment(commentTexts: string[]) {
  * Confidence may be overridden by caller; default heuristic uses sample count.
  */
 export function computeLean(
+
   samples: Array<{ bias?: string; sentiment: 'positive'|'negative'|'neutral'; engagement: number }>,
   confidenceHint?: number
 ) {
+
   let totalWeighted = 0;
   let totalEngagement = 0;
+
   for (const s of samples) {
     const postBiasScore = mapBiasToScore(s.bias);
     const mult = mapSentimentToMultiplier(s.sentiment);
@@ -95,14 +105,20 @@ export function computeLean(
     totalWeighted += postLean * s.engagement;
     totalEngagement += s.engagement;
   }
+
   let leanRaw = 0;
   let leanNormalized = 5;
+
   if (totalEngagement > 0) {
     const avgRaw = totalWeighted / totalEngagement;
     leanRaw = avgRaw;
     leanNormalized = normalizeOverall(avgRaw);
   }
+
   const confidence = typeof confidenceHint === 'number' ? confidenceHint : Math.min(0.95, 0.4 + 0.07 * samples.length);
+
   const overallScore = { score: leanNormalized, label: labelForScore(leanNormalized), confidence };
+
   return { leanRaw, leanNormalized, overallScore };
+
 }

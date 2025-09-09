@@ -30,8 +30,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
         <body className={`dark ${font.body.className} antialiased`}>
-          <div className="min-h-screen bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-800 text-neutral-100 py-12 px-4">
-            <div className="max-w-4xl mx-auto w-full flex flex-col">
+          <div className="min-h-screen bg-background text-neutral-100 py-12 px-4">
+            <div className="max-w-5xl mx-auto w-full flex flex-col">
               <AnalysisProvider>
                 <Header />
                 <Menu popularSubreddits={popularSubreddits} />

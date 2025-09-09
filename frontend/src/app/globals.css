@@ -181,3 +181,43 @@ h1, h2, h3, h4, h5, h6 {
     }
   }
 }
+
+.status-text {
+  display: inline-block;
+  background: linear-gradient(
+    135deg, #ffffff 0%, 
+    #ffffff 40%, 
+    #777777 50%, 
+    #ffffff 60%, 
+    #ffffff 100%
+  );
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.status-text--anim {
+  animation: shimmer 3s 1.5s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.status-text--stop {
+  animation: status-to-white 0.35s ease-out forwards;
+}
+
+@keyframes status-to-white {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.status-text--white {
+  background-position: 150% 0;
+}

@@ -1,4 +1,4 @@
-import type { Reddit } from "@/lib/types";
+import { Reddit, isSSERedditEvent, isSSEMBFCEvent, isSSEDiscussionEvent } from '@/lib/types';
 
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0; // epoch ms
@@ -108,4 +108,37 @@ export function extractTopLevelCommentBodies(threadJson: Reddit.APIResponse): st
     .map((c) => c.data?.body)
     .filter((b): b is string => typeof b === "string" && b.length > 0)
     .slice(0, 20);
+}
+
+export function summarizeForLog(name: string, data: unknown) {
+  try {
+
+    if (name === 'reddit' && isSSERedditEvent(data)) {
+      return { subreddit: data.subreddit, totalPosts: data.totalPosts };
+    }
+
+    if (name === 'mbfc' && isSSEMBFCEvent(data)) {
+      const biasKeys = Object.keys(data.biasBreakdown || {}).length;
+      return { urlsChecked: data.urlsChecked, biasKeys };
+    }
+
+    if (name === 'discussion' && isSSEDiscussionEvent(data)) {
+      const ds = data.discussionSignal;
+      return {
+        progress: data.progress,
+        samples: Array.isArray(ds?.samples) ? ds.samples.length : undefined,
+        leanNormalized: ds?.leanNormalized,
+        label: ds?.label,
+        cached: data.cached,
+      };
+    }
+
+    if (name === 'done' || name === 'error') return data;
+
+    if (typeof data === 'object' && data !== null) return Object.keys(data as Record<string, unknown>);
+    return data;
+
+  } catch {
+    return 'summary_failed';
+  }
 }

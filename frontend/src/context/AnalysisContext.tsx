@@ -3,8 +3,6 @@
 import { createContext, useContext, useState, useCallback, useRef } from "react";
 import type { AnalysisResult as SharedAnalysisResult } from "@/lib/types";
 
-
-
 interface BiasScore {
   score: number;
   confidence: number;
@@ -61,25 +59,34 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [discussionProgress, setDiscussionProgress] = useState<{ done: number; total: number } | null>(null);
 
   const analyzeCommunity = useCallback(async (url: string) => {
+
     if (!url.trim()) return;
+
     // Derive community name (subreddit) if present in URL
     const match = url.match(/reddit\.com\/(r\/[^/]+)/i);
+
     if (match) {
       setCommunityName(match[1]);
     }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
     setPhase('analyzing');
     setDiscussionProgress(null);
+
     if (esRef.current) { esRef.current.close(); esRef.current = null; }
+
     try {
+
       const src = new EventSource(`/api/analyze/stream?redditUrl=${encodeURIComponent(url)}`);
       esRef.current = src;
 
       src.addEventListener('reddit', (ev: MessageEvent) => {
+
         const data = JSON.parse(ev.data);
         console.log('[SSE:event] reddit', data);
+
         setResult(prev => ({
           ...(prev || {}),
           communityName: data.subreddit,
@@ -88,12 +95,16 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           redditPosts: data.redditPosts,
           totalPosts: data.totalPosts,
         }));
+
         setPhase('analyzing');
+
       });
 
       src.addEventListener('mbfc', (ev: MessageEvent) => {
+
         const data = JSON.parse(ev.data);
         console.log('[SSE:event] mbfc', data);
+
         setResult(prev => ({
           ...(prev || {}),
           biasBreakdown: data.biasBreakdown,
@@ -101,29 +112,35 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           urlsChecked: data.urlsChecked,
           overallScore: data.overallScore,
         }));
+
         setPhase('digging');
+
       });
 
       src.addEventListener('discussion', (ev: MessageEvent) => {
+
         const data = JSON.parse(ev.data);
+
         console.log('[SSE:event] discussion', data?.progress);
+
         setResult(prev => ({
           ...(prev || {}),
           discussionSignal: data.discussionSignal,
           overallScore: data.overallScore || prev?.overallScore,
         }));
+
         if (data.progress && typeof data.progress.done === 'number' && typeof data.progress.total === 'number') {
           setDiscussionProgress({ done: data.progress.done, total: data.progress.total });
         }
       });
 
-    src.addEventListener('done', () => {
-      console.log('[SSE:event] done');
-        setPhase('ready');
-        setIsLoading(false);
-        setDiscussionProgress(null);
-        src.close();
-        esRef.current = null;
+      src.addEventListener('done', () => {
+        console.log('[SSE:event] done');
+          setPhase('ready');
+          setIsLoading(false);
+          setDiscussionProgress(null);
+          src.close();
+          esRef.current = null;
       });
 
       src.addEventListener('error', () => {
@@ -134,6 +151,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
         src.close();
         esRef.current = null;
       });
+
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('Analysis failed');

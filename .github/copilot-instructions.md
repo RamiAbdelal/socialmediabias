@@ -74,14 +74,17 @@ If anything is unclear or cross-cutting, check `context.md`. Propose doc edits i
 - DB host rule: Docker→`mysql`, local dev→`127.0.0.1`. Do not regress this.
 - Type safety: Do NOT use `any` or type assertions (no `as Type`). Prefer narrowing and shared types.
 - Shared types only: import types from `frontend/src/lib/types.ts`. If a type is missing, add it there first.
+ - File size rule: if a single source file grows beyond ~300 lines of code, split it into cohesive modules/components (e.g., extract helpers into `src/server/*`, UI pieces into `src/components/*`). Keep API routes minimal.
+ - Documentation rule: add documentation for every new piece of code added. At minimum, include JSDoc for functions/helpers, brief header comments for new modules, and update `context.md`/README when behavior or flows change.
 
 ### End-of-task quality gates (block completion if any fail)
 1) Build/Lint: ensure no TS/ESLint errors in changed files.
 2) DRY audit: no duplicate logic introduced. If similar code exists, extract a helper (e.g., `computeDiscussionFinal()` instead of recomputing blocks).
 3) Tests or tiny smoke: for public behavior change, add/adjust at least one minimal test or run a quick smoke and paste the relevant output.
-4) Docs: update `context.md` and README when changing flows (SSE phases, prompts, DB, Makefile).
+4) Docs presence: documentation exists for all newly added code (JSDoc and/or header comments). Update `context.md`/README when flows or behavior change.
 5) Env safety: confirm `.env.local` vs container env expectations when touching DB/AI keys.
  6) Typesafe: no `any`, no `as` assertions; new shapes live in `src/lib/types.ts`.
+ 7) File size check: no single source file exceeds ~300 LOC without an accompanying refactor note or justified exception. Prefer splitting large files.
 
 ### DRY example (what to do)
 - Bad: recomputing lean metrics in multiple places.
