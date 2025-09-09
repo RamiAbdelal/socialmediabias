@@ -10,38 +10,44 @@ services:
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
       - REDDIT_SECRET=${REDDIT_SECRET}
       - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
-    ports:
-      - "${DOCKER_PORT_FRONTEND}:80"
-    depends_on:
-      - backend
-    env_file:
-      - .env
-
-  backend:
-    build:
-      context: ./backend
-    container_name: backend
-    restart: always
-    environment:
-      - NODE_ENV=${ENVIRONMENT}
-      - SITE_URL=${SITE_URL}
-      - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
-      - REDDIT_SECRET=${REDDIT_SECRET}
-      - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - MYSQL_HOST=mysql
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=${MYSQL_DATABASE}
-      - TZ=UTC
     ports:
-      - "${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}"
+      - "${DOCKER_PORT_FRONTEND}:80"
+    volumes:
+      - ./database:/app/database
     depends_on:
       - mysql
     env_file:
       - .env
-    volumes:
-      - ./database:/app/database
+
+  # backend:
+  #   build:
+  #     context: ./backend
+  #   container_name: backend
+  #   restart: always
+  #   environment:
+  #     - NODE_ENV=${ENVIRONMENT}
+  #     - SITE_URL=${SITE_URL}
+  #     - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
+  #     - REDDIT_SECRET=${REDDIT_SECRET}
+  #     - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
+  #     - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+  #     - MYSQL_HOST=mysql
+  #     - MYSQL_USER=${MYSQL_USER}
+  #     - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+  #     - MYSQL_DATABASE=${MYSQL_DATABASE}
+  #   ports:
+  #     - "${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}"
+  #   depends_on:
+  #     - mysql
+  #   env_file:
+  #     - .env
+  #   volumes:
+  #     - ./database:/app/database
 
   mysql:
     image: mysql:8.0
@@ -52,7 +58,6 @@ services:
       - MYSQL_DATABASE=${MYSQL_DATABASE}
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
-      - TZ=UTC
     ports:
       - "3306:3306"
     volumes:

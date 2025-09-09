@@ -1,6 +1,7 @@
 // frontend/src/context/AnalysisContext.tsx
 "use client";
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useRef } from "react";
+import type { AnalysisResult as SharedAnalysisResult } from "@/lib/types";
 
 
 
@@ -22,7 +23,7 @@ interface RedditPost {
   author: string;
   score: number;
 }
-export interface AnalysisResult {
+export interface AnalysisResult extends SharedAnalysisResult {
   communityName?: string;
   platform?: string;
   overallScore?: BiasScore;
@@ -30,6 +31,7 @@ export interface AnalysisResult {
   analysisDate?: string;
   redditPosts?: RedditPost[];
   message?: string;
+  // Extend only where needed; keep base fields from shared type
 }
 
 interface AnalysisContextType {
@@ -39,6 +41,8 @@ interface AnalysisContextType {
   analyzeCommunity: (url: string) => Promise<void>;
   communityName: string;
   setCommunityName: (name: string) => void;
+  phase?: 'idle'|'analyzing'|'digging'|'ready';
+  discussionProgress?: { done: number; total: number } | null;
 }
 
 const AnalysisContext = createContext<AnalysisContextType | undefined>(undefined);
@@ -52,6 +56,9 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [communityName, setCommunityName] = useState('');
+  const [phase, setPhase] = useState<'idle'|'analyzing'|'digging'|'ready'>('idle');
+  const esRef = useRef<EventSource | null>(null);
+  const [discussionProgress, setDiscussionProgress] = useState<{ done: number; total: number } | null>(null);
 
   const analyzeCommunity = useCallback(async (url: string) => {
     if (!url.trim()) return;
@@ -63,29 +70,80 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setPhase('analyzing');
+    setDiscussionProgress(null);
+    if (esRef.current) { esRef.current.close(); esRef.current = null; }
     try {
-      const res = await fetch(`http://localhost:9006/api/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ redditUrl: url }),
+      const src = new EventSource(`/api/analyze/stream?redditUrl=${encodeURIComponent(url)}`);
+      esRef.current = src;
+
+      src.addEventListener('reddit', (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        console.log('[SSE:event] reddit', data);
+        setResult(prev => ({
+          ...(prev || {}),
+          communityName: data.subreddit,
+          platform: 'reddit',
+          analysisDate: new Date().toISOString(),
+          redditPosts: data.redditPosts,
+          totalPosts: data.totalPosts,
+        }));
+        setPhase('analyzing');
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Analysis failed");
-      const logged = await res.json();
-      setResult(logged);
-      if (logged && logged.communityName) {
-        setCommunityName(logged.communityName);
-      }
-      console.log(logged); // Log the result for debugging
+
+      src.addEventListener('mbfc', (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        console.log('[SSE:event] mbfc', data);
+        setResult(prev => ({
+          ...(prev || {}),
+          biasBreakdown: data.biasBreakdown,
+          details: data.details,
+          urlsChecked: data.urlsChecked,
+          overallScore: data.overallScore,
+        }));
+        setPhase('digging');
+      });
+
+      src.addEventListener('discussion', (ev: MessageEvent) => {
+        const data = JSON.parse(ev.data);
+        console.log('[SSE:event] discussion', data?.progress);
+        setResult(prev => ({
+          ...(prev || {}),
+          discussionSignal: data.discussionSignal,
+          overallScore: data.overallScore || prev?.overallScore,
+        }));
+        if (data.progress && typeof data.progress.done === 'number' && typeof data.progress.total === 'number') {
+          setDiscussionProgress({ done: data.progress.done, total: data.progress.total });
+        }
+      });
+
+    src.addEventListener('done', () => {
+      console.log('[SSE:event] done');
+        setPhase('ready');
+        setIsLoading(false);
+        setDiscussionProgress(null);
+        src.close();
+        esRef.current = null;
+      });
+
+      src.addEventListener('error', () => {
+        console.warn('[SSE:event] error');
+        setError('Analysis failed');
+        setIsLoading(false);
+        setPhase('idle');
+        src.close();
+        esRef.current = null;
+      });
     } catch (err) {
       if (err instanceof Error) setError(err.message);
       else setError('Analysis failed');
     } finally {
-      setIsLoading(false);
+      // loading state finalized on done/error
     }
   }, []);
 
   return (
-    <AnalysisContext.Provider value={{ result, error, isLoading, analyzeCommunity, communityName, setCommunityName }}>
+    <AnalysisContext.Provider value={{ result, error, isLoading, analyzeCommunity, communityName, setCommunityName, phase, discussionProgress }}>
       {children}
     </AnalysisContext.Provider>
   );

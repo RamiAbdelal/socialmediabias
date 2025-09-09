@@ -51,7 +51,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 *All other signals and adapters are deferred until after MVP.*
 
 2. **Discussion / Comment Sentiment Signal (Heuristic v0)**
-  * Fetches a capped subset (currently up to 8) of posts that have MBFC-mapped external URLs.
+  * Fetches a capped subset (currently up to 10) of posts that have MBFC-mapped external URLs.
   * Pulls up to 20 top-level comments (depth 1) per post via Reddit OAuth.
   * Applies lightweight lexical stance heuristic (positive / negative token lists) to approximate community agreement or disagreement with the linked source.
   * Computes per-post engagement weight: `engagement = num_comments + score/100`.
@@ -71,8 +71,8 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 |                            | Displays: bias score (0–10), label (e.g., "center-left") |
 |                            | Shows: signal breakdown, source examples, AI summaries |
 |                            | Expandable UI for future metrics (Credibility, Demographics, etc.) |
-| **Backend**                | Node.js API in plain JavaScript (no TypeScript) |
-|                            | Simple, minimal code for fast MVP |
+| **Backend**                | Removed: all APIs consolidated into Next.js App Router |
+|                            | Single service (Next.js) behind NGINX |
 | **Platform Integration**   | Reddit API (MVP), Instagram/X (future) |
 |                            | Fetch top 50 posts from the last 30 days |
 |                            | Extract: posts, comments, external links, images |
@@ -83,6 +83,7 @@ Later an ImageSignal image searching a sample of image posts to check them for c
 | **AI Integration**         | DeepSeek Chat → OpenAI → HuggingFace pipeline |
 |                            | Prompt: "Analyze political sentiment and community tone" |
 |                            | Get bias score + confidence + summary |
+|                            | Centralized versioned prompts with per-provider overrides (see below) |
 | **Bias Score Logic**       | Weighted combination of all active signals |
 |                            | Normalize to 0–10 score with confidence estimate |
 |                            | Support for multiple metrics (Core, Credibility, etc.) |
@@ -170,11 +171,11 @@ socialmediabias/
 ### 📁 Project Folder Structure (as of August 2025)
 ```
 frontend/                # Next.js 15 app (App Router). UI, API routes, state orchestration.
-backend/                 # Express.js lightweight API service (MBFC signal + Reddit fetch)
+backend/                 # (Removed) legacy Express API — use Next.js API routes instead
 database/                # DB seed/init artifacts (SQL + MBFC JSON snapshot)
 nginx/                   # Reverse proxy configuration
 docker-compose.yml       # Orchestrates frontend, backend, MySQL
-Makefile                 # (Planned) automation targets
+Makefile                 # Automation targets (dev, db-init/ingest/seed, health, nginx, etc.)
 context.md               # This document (single source of truth)
 README.md                # Public quickstart (shorter than context.md)
 env.example              # Example environment variables
@@ -184,8 +185,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ### 🔎 File-by-File Responsibilities (Authoritative Inventory)
 
 #### Root Level
-- `docker-compose.yml` – Spins up services: `frontend` (Next.js), `backend` (Express), `mysql`. Wires env vars, mounts the DB seed volume.
-- `Makefile` – Placeholder. Planned targets: build, deploy, db export/import, logs, clean, nginx reload.
+- `docker-compose.yml` – Spins up services: `frontend` (Next.js) and `mysql`. Wires env vars; mounts `./database` into the frontend container at `/app/database`.
+- `Makefile` – Implemented automation: dev, db-init, db-ingest-mbfc, db-seed, health, nginx, etc.
 - `context.md` – Canonical project knowledge (architecture + decisions). Update whenever adding/modifying behavior.
 - `README.md` – External-facing concise overview & quickstart. Should not duplicate deep architecture detail.
 - `env.example` – Template for `.env` (copy then customize). Keep keys alphabetized and documented inline where possible.
@@ -193,19 +194,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 - `.gitignore` – Ignores build artifacts, local env files, dependency folders.
 - `prompt.md` – (If present) May contain AI prompt / experimentation text (not production logic).
 
-#### `backend/`
-- `backend/Dockerfile` – Multi-stage (expected) container build for production deployment of the API.
-- `backend/package.json` – Declares Express + mysql2 + node-fetch dependencies, scripts (start, dev).
-- `backend/index.js` – Bootstrapping entry (currently logs a startup message). Could in future delegate to `app/index.js`.
-- `backend/app/index.js` – Main Express server: CORS config, health endpoint, `/api/analyze` POST route (fetches subreddit posts via Reddit OAuth, enriches with MBFC lookup), response assembly.
-- `backend/app/mbfc-signal.js` – Implements `getMBFCBiasForUrls(urls, dbConfig)` performing domain normalization and flexible suffix matching against `mbfc_sources` table.
-- `backend/app/signal/*` – Placeholder/future specialization modules (`reddit-link.js`, `reddit-text.js`, etc.) for planned multi-signal architecture (currently unused or skeletal).
-
-##### Backend Runtime Data Flow
-1. Client sends subreddit URL to `/api/analyze`.
-2. Backend obtains OAuth token, fetches top posts.
-3. Extracts outbound URLs → passes to `getMBFCBiasForUrls`.
-4. Builds `AnalysisResult` structure (MBFC bias breakdown + raw posts) -> returns JSON consumed by frontend.
+#### `backend/` (removed)
+Legacy Express backend decommissioned. All endpoints live in `frontend/src/app/api/*` under Next.js App Router.
 
 #### `database/`
 - `init.sql` – MySQL initialization (schema + table creation + potential seed load). Ensure idempotency for repeated container starts.
@@ -235,6 +225,8 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 ##### Frontend API Routes (`src/app/api/`)
 - `og-image/route.ts` – Fetches target URL HTML, extracts `<meta property="og:image" ...>` and returns `ogImage` (used for link previews in cards).
 - `reddit-comment/route.ts` – Given a Reddit comment permalink, fetches `<permalink>.json` from Reddit and returns raw JSON inside `{ body }`.
+- `analyze/route.ts` – Non-streamed analysis endpoint.
+- `analyze/stream/route.ts` – SSE progressive analysis (reddit → mbfc → discussion → done).
 
 ##### React Context & State
 - `context/AnalysisContext.tsx` – Central client-side state store (community name, loading, results, errors) to avoid prop drilling and support multi-route navigation.
@@ -253,10 +245,10 @@ mbfc-dataset-2025-08-05.json # Raw MBFC dataset snapshot (importable)
 - `lib/popularSubreddits.js` – Static list used for UI selection/autocomplete.
 
 ### 🔄 Data Contracts
-The backend returns an object conforming loosely to `AnalysisResult`:
+The server routes return an object conforming loosely to `AnalysisResult`:
 ```ts
 interface AnalysisResult {
-  subreddit?: string;            // (backend) also mapped to communityName client-side
+  subreddit?: string;            // also mapped to communityName client-side
   communityName?: string;        // (frontend merged)
   platform?: 'reddit';
   overallScore?: { score: number; label: string; confidence: number };
@@ -313,6 +305,19 @@ Filters are additive AND conditions across: Bias, Credibility, Factual Reporting
 - [ ] Add graceful shutdown (SIGTERM) for backend DB connection pools.
 - [ ] UI accessibility & dark/light theme toggle.
 
+## 🧠 Centralized AI Prompts (Versioned)
+
+Prompts for AI providers are centralized in `frontend/src/server/ai/prompts.ts`.
+
+- Keys: `stance_source` (comments vs. original linked source) and `stance_title` (comments vs. post title).
+- Versioning: `DEFAULT_PROMPT_VERSION = v1`. Add new versions to the `PROMPT_VERSIONS` map.
+- Provider overrides: Use `PROVIDER_OVERRIDES` to override a specific key/version for `openai` or `deepseek`.
+- Resolution order: explicit override string → provider override → default versioned prompt.
+
+Usage:
+- Providers call `resolvePrompt(providerId, key, version?, override?)` internally.
+- API route `analyze/stream` selects `stance_source` when an MBFC bias exists for the URL, else `stance_title`.
+
 ## 🔐 Security / Privacy Considerations
 - Do not log full access tokens (currently safe; ensure masking if added).
 - Rate limiting / abuse prevention not yet implemented (future: NGINX + token bucket middleware).
@@ -354,7 +359,7 @@ Filters are additive AND conditions across: Bias, Credibility, Factual Reporting
 | Auth | None | API key for backend | User accounts / personalization |
 
 ---
-Document updated: 2025-08-28 (Added heuristic Discussion Signal + combined scoring v0)
+Document updated: 2025-09-08 (SSE progressive streaming + backoff on Reddit comments; NGINX SSE notes)
 Maintainer: (update with your name/contact)
 
 ---
@@ -405,26 +410,23 @@ URL_PRODUCTION=https://smb.rami-abdelal.co.uk
 
 ## 📦 Docker Compose Configuration
 
-The `docker-compose.yml` orchestrates three services:
+The `docker-compose.yml` orchestrates two services:
 
 ### Frontend Service
 - **Image**: Built from `./frontend/Dockerfile`
 - **Port**: `${DOCKER_PORT_FRONTEND}:80` (default: 9005:80)
 - **Environment**: `APP_ENV`, `SITE_URL`
-- **Dependencies**: Backend service
-
-### Backend Service  
-- **Image**: Built from `./backend/Dockerfile`
-- **Port**: `${DOCKER_PORT_BACKEND}:${BACKEND_INTERNAL_PORT}` (default: 9006:3001)
-- **Environment**: All API keys, MySQL connection, site URL
 - **Dependencies**: MySQL service
+
+### Backend Service (removed)
+Legacy Express backend removed; Next.js handles all API endpoints.
 
 ### MySQL Service
 - **Image**: `mysql:8.0`
 - **Port**: `3306:3306` (for local development access)
 - **Volumes**: 
   - `mysql_data:/var/lib/mysql` (persistent data)
-  - `./database/init.sql:/docker-entrypoint-initdb.d/init.sql` (initialization)
+  # init.sql not auto-mounted; run once manually or use importer
 - **Environment**: Root password, database name, user credentials
 
 ---
@@ -449,13 +451,17 @@ cp .env.example .env  # Create from template
 
 ### 3. Database Setup
 ```bash
-# Now using TypeORM (Active Record) for schema, migrations and seeding
-# Run services
+# Bring up services
 docker compose up -d
 
-# Run migrations and seed (inside backend container)
-docker exec backend npm run migration:run
-docker exec backend npm run seed
+# Create schema (one-time)
+docker exec -i mysql mysql -u root -p$MYSQL_ROOT_PASSWORD < /home/ubuntu/socialmediabias/database/init.sql
+
+# Import MBFC JSON (copy file to VPS first)
+docker exec -it frontend sh -lc "node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json"
+
+# Verify count
+docker exec -it mysql sh -lc 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysql -u root -e "SELECT COUNT(*) AS count FROM mbfc.mbfc_sources;"'
 ```
 
 ### 4. Development
@@ -465,7 +471,6 @@ docker-compose up --build
 
 # Or start individual services
 docker-compose up frontend
-docker-compose up backend
 docker-compose up mysql
 ```
 
@@ -620,25 +625,26 @@ Auth / Access
 ### Makefile Automation Summary
 Target | Purpose
 -------|--------
-`dev` | Start all services with build
+`dev` | Start services with build
 `dev-logs` | Tail logs for all services
 `db-reset` | Recreate MySQL container & volume (fresh state)
-`db-fetch-mbfc` | Fetch refreshed MBFC dataset via backend script
-`db-load-mbfc` | Run migrations & seed MBFC data
-`db-setup` | Full DB reset + backend up + migrations + seed
-`db-update` | Fetch then load MBFC dataset (refresh path)
-`setup` | One-shot environment bring-up & seed
+`db-init` | Apply schema from `database/init.sql`
+`db-ingest-mbfc` | Ingest `database/mbfc-current.json` via Node importer inside frontend
+`db-seed` | Run `db-init` then `db-ingest-mbfc`
+`setup` | Bring up stack, wait for MySQL, then `db-init`
 `db-export` | Dump DB to backup.sql
 `db-import` | Restore DB from backup.sql
 `deploy-local` | Local rebuild & detached run
-`deploy-production` | Remote compose up (placeholder credentials)
+`deploy-production` | Remote compose up (placeholder)
 `nginx-test` | Validate NGINX configuration
 `nginx-reload` | Reload NGINX service
 `clean` | Down + prune volumes/images
-`health` | Basic service availability checks
-`mysql-shell` | Interactive MySQL shell w/ env creds
-`backend-reload` | Rebuild & restart backend only
+`health` | Frontend and MySQL checks
+`mysql-shell` | Interactive MySQL shell using env creds
+`backend-reload` | No-op placeholder (backend removed)
 `help` | List make targets with descriptions
+
+Tip: when verifying counts, prefer `SELECT COUNT(*) AS count FROM mbfc.mbfc_sources;` (avoid aliasing to `rows`).
 
 Planned Additions:
 - `ci` (lint + typecheck + unit tests)
@@ -677,24 +683,30 @@ Create `/etc/nginx/sites-available/socialmediabias`:
 
 ```nginx
 server {
-    listen 80;
-    server_name smb.rami-abdelal.co.uk;
+  listen 80;
+  server_name smb.rami-abdelal.co.uk;
 
-    location / {
-        proxy_pass http://localhost:9005;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+  # All traffic goes to Next.js (frontend) on :9005
+  location / {
+    proxy_pass http://localhost:9005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
 
-    location /api/ {
-        proxy_pass http://localhost:9006/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+  # Optional: explicit SSE location (same upstream, buffering off)
+  location /api/analyze/stream {
+    proxy_pass http://localhost:9005;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    chunked_transfer_encoding on;
+    proxy_read_timeout 3600s;
+    add_header X-Accel-Buffering no;
+  }
 }
 ```
 
@@ -707,43 +719,76 @@ sudo systemctl reload nginx
 
 ---
 
-## 🛠️ Makefile Automation (To Be Implemented)
+## 🔄 Progressive Streaming (SSE) Flow
 
-Create a `Makefile` with these targets:
+Endpoint: `GET /api/analyze/stream?redditUrl=https://www.reddit.com/r/<subreddit>`
 
-```makefile
-# Database operations
-db-export:
-  docker exec mysql mysqldump -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) > backup.sql
+Phases emitted as SSE events:
+- `reddit`: Initial batch of subreddit top posts (title, url, permalink, author, score). Enables UI to render quickly.
+- `mbfc`: MBFC lookup results for extracted external URLs. Includes `biasBreakdown`, `details`, and a provisional `overallScore` placeholder.
+- `discussion`: Repeated event as we analyze up to 10 candidate posts in batches of 2. Each emit contains `discussionSignal` (samples, leanRaw, leanNormalized, label), updated `overallScore`, and `progress { done, total }`.
+- `done`: Terminal event indicating completion.
+- `error`: If an unrecoverable error occurs, emits `{ message }` then stream closes.
 
-db-import:
-  docker exec -i mysql mysql -u root -p$(MYSQL_ROOT_PASSWORD) $(MYSQL_DATABASE) < backup.sql
+Notes:
+- Phase C (discussion) runs even when MBFC yields zero matches; in that case the AI prompt is anchored toward the POST TITLE and uses comment bodies + title for stance classification.
+- Confidence for the combined score scales with sample count, capped at 0.95.
 
-# Deployment
-deploy-local:
-  docker-compose up -d --build
+### Reddit API Backoff & Rate Limit Handling
+- Comment fetches use OAuth with 10s request timeout and exponential backoff with jitter on errors.
+- Specifically handles:
+  - HTTP 429 or `x-ratelimit-remaining <= 1`: waits for `x-ratelimit-reset` seconds when present, otherwise uses exponential backoff.
+  - HTTP 5xx: retried with backoff up to 4 additional attempts.
+  - Network/abort errors: retried with backoff up to 4 additional attempts.
+- Concurrency: small fixed pool (3) with 100–300ms jitter between tasks to smooth burstiness.
 
-deploy-production:
-  ssh user@server "cd /path/to/project && docker-compose up -d --build"
+### Client Consumption
+- The client uses `EventSource` to consume events and updates UI phases: “Analyzing…”, “Digging deeper… (n/10)”, then ready.
+- `SubredditResults.tsx` renders progressively; `AnalysisContext` merges incoming partials.
 
-# NGINX
-nginx-test:
-  sudo nginx -t
+### Proxy Requirements (SSE)
+- Ensure NGINX disables buffering for the API location handling SSE, or set `X-Accel-Buffering: no` upstream (we do both as belt-and-suspenders).
+- Long `proxy_read_timeout` avoids idle disconnects during long-running analyses.
 
-nginx-reload:
-  sudo systemctl reload nginx
+### Add a new SSE event (example)
+To emit an extra phase (e.g., `images`), update `frontend/src/app/api/analyze/stream/route.ts`:
 
-# Development
-dev:
-  docker-compose up --build
+```ts
+// 1) Add config at file top if needed (e.g., IMAGE_BATCH_SIZE)
 
-logs:
-  docker-compose logs -f
+// 2) Inside the handler, after MBFC phase
+await (async () => {
+  // do your work here (fetch/process)
+  const payload = { imagesChecked: urls.length };
+  writeEvent('images', payload); // progressive emit
+})();
 
-clean:
-  docker-compose down -v
-  docker system prune -f
+// 3) Ensure client merges the new event in src/context/AnalysisContext.tsx
 ```
+
+Use `writeEvent(type, data)` consistently; always finish with a terminal `done` event.
+
+### Provider prompt override (example)
+Prompts are resolved in `src/server/ai/prompts.ts`. You can override per-call without changing defaults:
+
+```ts
+import { analyzeSentiment } from '@/server/ai/adapter';
+
+const result = await analyzeSentiment({
+  text,
+  promptKey: 'stance_title',
+  promptVersion: 'v1',
+  promptOverride: 'You are a strict JSON formatter... {"sentiment":"positive|neutral|negative"}',
+});
+```
+
+Inside a provider, resolve explicitly:
+
+```ts
+import { resolvePrompt } from '@/server/ai/prompts';
+const prompt = resolvePrompt('openai', 'stance_source', 'v1', overrideString);
+```
+
 
 ---
 

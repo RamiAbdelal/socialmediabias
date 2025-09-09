@@ -1,1 +1,0 @@
-console.info("Starting backend server...");

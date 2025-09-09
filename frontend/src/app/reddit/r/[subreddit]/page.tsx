@@ -8,13 +8,13 @@ import SubredditResults from "../../../../components/SubredditResults";
 
 export default function SubredditPage() {
   const subreddit = (useParams() as { subreddit: string }).subreddit;
-  const { analyzeCommunity, result, error, isLoading, communityName } = useAnalysis();
+  const { analyzeCommunity, result, error, isLoading } = useAnalysis();
 
   useEffect(() => {
     if (subreddit) {
       analyzeCommunity(`https://reddit.com/r/${subreddit}`);
     }
-  }, [subreddit]);
+  }, [subreddit, analyzeCommunity]);
 
   return (
     <main>

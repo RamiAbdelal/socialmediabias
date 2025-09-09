@@ -70,20 +70,32 @@ export interface AnalysisResult {
   totalPosts?: number;
   urlsChecked?: number;
   discussionSignal?: {
-    samples: Array<{
-      title: string;
-      url: string;
-      permalink: string;
-      bias: string;
-      sentiment: 'positive' | 'negative' | 'neutral';
-      engagement: number;
-      sampleComments: string[];
-    }>;
+    samples: DiscussionSample[];
     leanRaw: number;           // -5..5 raw score
     leanNormalized: number;    // 0..10 normalized
     label: string;             // label bucket
   };
 }
+
+export type DiscussionSample = {
+  title: string;
+  url: string;
+  permalink: string;
+  // Bias may be missing when MBFC didn’t match
+  bias?: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  engagement: number;
+  sampleComments: string[];
+  aiMeta?: {
+    provider: string;
+    sentiment?: string;
+    score?: number;
+    reasoning?: string;
+    model?: string;
+    cached?: boolean;
+    error?: boolean;
+  } | null;
+};
 
 export interface SubredditResultsProps {
   subreddit: ParamValue;
@@ -433,4 +445,67 @@ export namespace Reddit {
     gid_2?: number;
     gid_3?: number;
   }
+}
+
+// ======================
+// SSE event payloads
+// ======================
+
+export interface SSERedditEvent {
+  subreddit: string;
+  redditPosts: RedditPost[];
+  totalPosts: number;
+}
+
+export interface SSEMBFCEvent {
+  urlsChecked: number;
+  biasBreakdown: Record<string, number>;
+  details: MBFCDetail[];
+  overallScore: BiasScore;
+}
+
+export interface SSEDiscussionEvent {
+  discussionSignal: {
+    samples: DiscussionSample[];
+    leanRaw: number;
+    leanNormalized: number;
+    label: string;
+  };
+  overallScore: BiasScore;
+  progress: { done: number; total: number };
+  cached?: boolean;
+}
+
+export interface SSEDoneEvent { ok: boolean; cached?: boolean }
+export interface SSEErrorEvent { message: string }
+
+export type SSEEventPayload =
+  | SSERedditEvent
+  | SSEMBFCEvent
+  | SSEDiscussionEvent
+  | SSEDoneEvent
+  | SSEErrorEvent;
+
+function isObj(x: unknown): x is Record<string, unknown> {
+  return typeof x === 'object' && x !== null;
+}
+
+export function isSSERedditEvent(x: unknown): x is SSERedditEvent {
+  return isObj(x) && 'subreddit' in x && 'totalPosts' in x && 'redditPosts' in x;
+}
+
+export function isSSEMBFCEvent(x: unknown): x is SSEMBFCEvent {
+  return isObj(x) && 'biasBreakdown' in x && 'urlsChecked' in x && 'overallScore' in x;
+}
+
+export function isSSEDiscussionEvent(x: unknown): x is SSEDiscussionEvent {
+  return isObj(x) && 'discussionSignal' in x && 'overallScore' in x && 'progress' in x;
+}
+
+export function isSSEDoneEvent(x: unknown): x is SSEDoneEvent {
+  return isObj(x) && 'ok' in x;
+}
+
+export function isSSEErrorEvent(x: unknown): x is SSEErrorEvent {
+  return isObj(x) && 'message' in x;
 }

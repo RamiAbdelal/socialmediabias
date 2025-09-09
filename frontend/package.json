@@ -7,14 +7,21 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "ingest:mbfc": "node scripts/ingest-mbfc.mjs"
   },
   "dependencies": {
-    "@heroui/react": "^2.8.2",
+  "mysql2": "^3.11.3",
     "framer-motion": "^12.23.12",
     "next": "15.4.5",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.2",
+    "lucide-react": "^0.453.0",
+    "dotenv": "^16.4.5",
+    "stream-json": "^1.8.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

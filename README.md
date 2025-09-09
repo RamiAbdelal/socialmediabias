@@ -9,7 +9,7 @@ Bias analysis for social media communities (MVP: Reddit) using media source link
 - Docker and Docker Compose
 - Node.js 22+ (for local development)
 
-### Setup
+### Setup (containers)
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -17,74 +17,86 @@ cd socialmediabias
 
 # Create environment file
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your MySQL creds + Reddit keys (AI keys optional)
 
-# Start the application (production build)
-docker-compose up --build
+# Start services
+docker compose up -d --build
 
-# Development workflow
-## Frontend (Next.js)
-To develop the frontend (hot reload, port 3000):
+# Initialize DB schema and ingest MBFC dataset
+make db-seed
+
+# App is now available
+echo http://localhost:9005
 ```
 
+### Local development (Next.js dev server)
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-This starts the Next.js dev server at http://localhost:3000 (separate from the Docker production port mapping 9005).
+Dev server runs at http://localhost:3000.
 
-After changes, confirm the production build (optimized) via the container at http://localhost:9005 by rebuilding:
-```bash
-docker compose up frontend -d --build
+Important: for local dev, configure DB host to your machine, not the container DNS.
+Create `frontend/.env.local` with at least:
+```env
+MYSQL_HOST=127.0.0.1
+MYSQL_USER=mbfc_user
+MYSQL_PASSWORD=mbfc_pass
+MYSQL_DATABASE=mbfc
+DEEPSEEK_API_KEY=your_deepseek_key   # optional
+OPENAI_API_KEY=your_openai_key       # optional
 ```
 
-## Backend (Express)
-The backend runs on [http://localhost:9006](http://localhost:9006) (via Docker Compose or `npm run dev` in the backend folder).
+Rebuild the containerized app (served at http://localhost:9005):
+```bash
+docker compose up -d --build frontend
+```
 
 ## Production
-Production builds run the frontend on port 9005 (http://localhost:9005) and the backend on port 9006.
+Production runs the Next.js app on port 9005 (http://localhost:9005). NGINX is recommended for TLS and SSE passthrough. See `nginx/nginx.conf` and `context.md` for proxy settings.
 
 ## 🏗️ Architecture (Current vs Planned)
 
 Current MVP (implemented):
-- Thin Express backend: fetch subreddit posts (OAuth), extract external URLs, look up MBFC bias & related metadata (bias, credibility, factual reporting, media type, country) via MySQL.
-- Next.js frontend (App Router): orchestrates request, merges Reddit posts + MBFC rows into displayable "RedditSignal" cards.
-- On-demand enhancements: per-link OG image fetch, lazy single-comment-thread fetch (click to load), dynamic multi-attribute filtering.
-- Documentation: `context.md` acts as canonical architecture & roadmap source (see it for complete domain model). 
+- Next.js (App Router) only: server API routes handle all backend logic.
+- SSE streaming pipeline at `/api/analyze/stream` with phases: `reddit` → `mbfc` → `discussion` → `done` (and `error`).
+- MySQL 8 stores MBFC data. Import via streaming Node script and Makefile.
+- On-demand endpoints: OG image fetch, Reddit thread fetch.
+- Documentation: `context.md` is the canonical architecture & operations doc.
 
 Planned domain abstractions (future phases):
 - Formal `SignalResult` aggregation pipeline (multi-signal weighting).
-- Comment sentiment inference (DeepSeek → OpenAI → HuggingFace fallback) feeding dynamic bias confidence.
+- Comment sentiment inference (DeepSeek → OpenAI fallback) feeding dynamic bias confidence.
 - Image / cross-platform signals and historical trend storage.
 
 Key Data Objects (pragmatic forms):
 - `MBFCDetail` (row from mbfc_sources table).
 - `RedditPost` (subset of Reddit API response fields + permalink).
 - `RedditSignal` (merged view keyed by resolved external URL).
-- `AnalysisResult` (overall summary + collections; currently partially populated).
+- `AnalysisResult` (overall summary + collections; streamed progressively).
 
-For full schema & evolution roadmap, consult `context.md`.
-
-### Implemented Signal
+### Implemented Signals
 1. **MBFCSignal (MVP)**
   - Extracts outbound URLs from top Reddit posts
   - Normalizes domains (handles subdomain & suffix variations)
   - Joins with MBFC dataset to surface bias, credibility, factual rating
   - Provides counts for breakdown & filtering
 
+2. **Discussion (batched)**
+  - Fetches top-level comments for a small set of posts
+  - Heuristic sentiment baseline; optional AI sentiment if keys are present
+  - Streams progressive overall score updates
+
 ### Upcoming Signals
-2. **RedditCommentSignal** (Planned)
-  - Thread fetch on-demand → sentiment & ideological tone extraction
 3. **ImageSignal** (Planned)
   - OCR + fact-check heuristics / external corroboration
 
 ### Request / Display Flow
-1. User enters subreddit and triggers analyze
-2. Backend returns posts + MBFC matches + bias breakdown
-3. Frontend merges dataset → builds filter option sets (Bias, Credibility, Factual, Country, Media Type, Source URL)
-4. User optionally loads OG image previews & a single comment thread per card (lazy)
-5. Future: aggregated multi-signal scoring & confidence updates dynamically
+1. User enters subreddit → `GET /api/analyze/stream?redditUrl=...`
+2. SSE events stream in phases: `reddit`, `mbfc`, `discussion`, then `done`
+3. Client merges events into state and renders progressively
+4. Optional: per-card OG image fetch and comment thread fetch
 
 ### On-Demand Comment Loading (Current Behavior)
 - Button on each relevant card fetches `/api/reddit-comment?permalink=...`
@@ -93,106 +105,83 @@ For full schema & evolution roadmap, consult `context.md`.
 
 ## 📁 Project Structure (Concise)
 
-```
+```text
 socialmediabias/
-├── frontend/
-│   ├── .gitignore
-│   ├── Dockerfile
-│   ├── eslint.config.mjs
-│   ├── next-env.d.ts
-│   ├── next.config.ts
-│   ├── package-lock.json.backup
-│   ├── package.json
-│   ├── postcss.config.mjs
-│   ├── README.md
-│   ├── tsconfig.json
-│   ├── .next/
-│   ├── public/
-│   │   ├── file.svg
-│   │   ├── globe.svg
-│   │   ├── next.svg
-│   │   ├── vercel.svg
-│   │   └── window.svg
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── favicon.ico
-│   │   │   ├── globals.css
-│   │   │   ├── layout.tsx
-│   │   │   ├── not-found.tsx
-│   │   │   ├── page.tsx
-│   │   │   └── reddit/
-│   │   │       └── r/
-│   │   │           └── [subreddit]/
-│   │   │               └── page.tsx
-│   │   ├── components/
-│   │   │   ├── Header.tsx
-│   │   │   ├── Menu.tsx
-│   │   │   └── SubredditResults.tsx
-│   │   ├── context/
-│   │   │   └── AnalysisContext.tsx
-│   │   └── lib/
-│   │       └── popularSubreddits.js
-│   └── ... # Build, config, and cache files
-├── backend/
-│   ├── Dockerfile
-│   ├── index.js
-│   ├── package.json
-│   └── app/
-│       ├── index.js
-│       ├── mbfc-signal.js
-│       └── signal/
-│           ├── image.js
-│           ├── mbfc.js
-│           ├── reddit-discussion.js
-│           ├── reddit-image.js
-│           ├── reddit-link.js
-│           ├── reddit-text.js
-│           └── ...
+├── context.md
+├── docker-compose.yml
+├── env.example
+├── Makefile
+├── nginx/
+│   └── nginx.conf
 ├── database/
 │   ├── init.sql
 │   └── mbfc-current.json
-├── nginx/
-│   └── nginx.conf
-├── docker-compose.yml
-├── mbfc-dataset-2025-08-05.json
-├── .gitignore
-├── README.md
-├── Makefile
-└── prompt.md
+├── frontend/
+│   ├── Dockerfile
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── next.config.ts
+│   ├── public/
+│   ├── scripts/
+│   │   └── ingest-mbfc.mjs
+│   └── src/
+│       ├── app/
+│       │   ├── api/
+│       │   │   ├── analyze/
+│       │   │   │   └── stream/route.ts
+│       │   │   ├── reddit-comment/route.ts
+│       │   │   └── og-image/route.ts
+│       │   ├── reddit/r/[subreddit]/page.tsx
+│       │   ├── layout.tsx
+│       │   ├── page.tsx
+│       │   └── globals.css
+│       ├── components/
+│       │   ├── Header.tsx
+│       │   ├── Menu.tsx
+│       │   ├── RedditPostsSection.tsx
+│       │   ├── RedditSignalCard.tsx
+│       │   └── SubredditResults.tsx
+│       ├── context/
+│       │   ├── AnalysisContext.tsx
+│       │   └── HeroUIProvider.tsx
+│       └── lib/
+│           ├── popularSubreddits.js
+│           ├── types.ts
+│           └── utils.ts
+└── README.md
 ```
 
 ## 🔧 Development
 
 ### Makefile Targets (Summary)
 ```bash
-make dev            # Start all services (build if needed)
-make dev-logs       # Follow service logs
-make setup          # Full environment bring-up + migrations + seed
-make db-reset       # Fresh MySQL (drops volume)
-make db-fetch-mbfc  # Fetch latest MBFC dataset (backend script)
-make db-load-mbfc   # Run migrations + seed MBFC data
-make db-update      # Fetch + load updated MBFC dataset
-make db-export      # Dump database -> backup.sql
-make db-import      # Import backup.sql
-make mysql-shell    # Open MySQL shell using env credentials
-make backend-reload # Rebuild/restart backend only
-make deploy-local   # Rebuild & run detached
-make clean          # Remove containers + volumes (prune)
-make health         # Basic availability checks
-make help           # Show all targets
+make dev             # Start all services (build if needed)
+make dev-logs        # Follow service logs
+make setup           # Bring up services and apply schema (no ingest)
+make db-init         # Apply schema from database/init.sql
+make db-ingest-mbfc  # Ingest MBFC JSON via importer script
+make db-seed         # Schema + MBFC ingest
+make db-reset        # Reset MySQL volume and restart mysql
+make db-export       # Dump database -> backup.sql
+make db-import       # Import backup.sql
+make mysql-shell     # Open MySQL shell using env credentials
+make deploy-local    # Rebuild & run detached
+make nginx-test      # Test NGINX config
+make nginx-reload    # Reload NGINX
+make clean           # Remove containers + volumes
+make health          # Basic availability checks
+make help            # Show all targets
 ```
-Planned additions: `ci` (lint/test), `analyze-bundle`, `perf-sample`.
+Note: `backend-reload` is a no-op (kept for compatibility).
 
 ### Environment Variables
-Create a `.env` file in the root directory:
+Create a `.env` file in the root directory (used by Docker Compose):
 
 ```env
 # Environment
 ENVIRONMENT=LOCAL
 SITE_URL=http://localhost:9005
 DOCKER_PORT_FRONTEND=9005
-DOCKER_PORT_BACKEND=9006
-BACKEND_INTERNAL_PORT=3001
 
 # Reddit API
 REDDIT_CLIENT_ID=your_reddit_client_id
@@ -202,7 +191,6 @@ REDDIT_USER_AGENT=your_user_agent
 # AI Models
 DEEPSEEK_API_KEY=your_deepseek_key
 OPENAI_API_KEY=your_openai_key
-HUGGINGFACE_API_KEY=your_huggingface_key
 
 # MySQL
 MYSQL_ROOT_PASSWORD=rootpassword
@@ -220,6 +208,7 @@ Implemented:
 - Lazy per-card comment thread fetch (debug/raw view groundwork)
 - `RedditSignalCard` componentization (clean separation of concerns)
 - Dockerized full stack + Makefile automation
+- SSE streaming with backoff/jitter; NGINX SSE passthrough
 - Expanded living architecture doc (`context.md`)
 
 In Progress / Planned (next):
@@ -238,35 +227,19 @@ Future / Later Phases:
 
 ## 📊 API Endpoints (MVP)
 
-### POST /api/analyze
-Analyze a social media community for political bias.
+### GET /api/analyze/stream
+Server-Sent Events (SSE) endpoint. Query: `redditUrl=https://www.reddit.com/r/<subreddit>/...`
 
-**Request:**
-```json
-{
-  "communityName": "politics",
-  "platform": "reddit"
-}
-```
+Emitted events:
+- `reddit`: initial post list
+- `mbfc`: MBFC breakdown and details
+- `discussion`: progressive discussion samples + overall score
+- `done`: terminal event
+- `error`: error payload
 
-Key route (backend): `POST /api/analyze`
-Returns JSON with subreddit posts, MBFC matched details, and bias breakdown (overall score currently placeholder). See `context.md` for the evolving `AnalysisResult` contract.
-
-Internal frontend API routes:
+Other endpoints:
 - `GET /api/og-image?url=` – Extract OG image meta
 - `GET /api/reddit-comment?permalink=` – Fetch raw Reddit thread JSON (lazy)
-
-Example (truncated) Response:
-```json
-{
-  "communityName": "politics",
-  "platform": "reddit",
-  "biasBreakdown": {"Least Biased": 5, "Left-Center": 3},
-  "details": [{"source_url": "bbc.com", "bias": "Least Biased"}],
-  "redditPosts": [{"id": "abc123", "permalink": "/r/politics/..."}],
-  "overallScore": {"score": 5.0, "label": "center", "confidence": 0.5}
-}
-```
 
 ## 🛣️ Roadmap (Condensed)
 Phases:
@@ -294,7 +267,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Media Bias Fact Check (MBFC)
 - Reddit API
-- DeepSeek, OpenAI, HuggingFace (planned sentiment/LLM pipeline)
+- DeepSeek, OpenAI (sentiment/LLM pipeline)
 
 ---
 For deeper architectural details, open `context.md` (single source of truth). Keep README concise; extend context instead of duplicating here.
