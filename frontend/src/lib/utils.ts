@@ -23,19 +23,19 @@ export const defaultRedditSignal: RedditSignal = {
   score: undefined,
 };
 
-export const getBiasColor = (score: number) => {
-  if (score <= 2) return 'text-red-600';
-  if (score <= 4) return 'text-orange-600';
-  if (score <= 6) return 'text-yellow-600';
-  if (score <= 8) return 'text-blue-600';
-  return 'text-purple-600';
-};
+// export const getBiasColor = (score: number) => {
+//   if (score <= 2) return 'text-red-600';
+//   if (score <= 4) return 'text-orange-600';
+//   if (score <= 6) return 'text-yellow-600';
+//   if (score <= 8) return 'text-blue-600';
+//   return 'text-purple-600';
+// };
 
-export const getConfidenceColor = (confidence: number) => {
-  if (confidence >= 0.8) return 'text-green-600';
-  if (confidence >= 0.6) return 'text-yellow-600';
-  return 'text-red-600';
-};
+// export const getConfidenceColor = (confidence: number) => {
+//   if (confidence >= 0.8) return 'text-green-600';
+//   if (confidence >= 0.6) return 'text-yellow-600';
+//   return 'text-red-600';
+// };
 
 export const isImageUrl = (url: string) => {
   return /\.(jpe?g|png|gif|bmp|webp|avif)$/i.test(url) || url.includes('i.redd.it/');

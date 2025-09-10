@@ -1,4 +1,5 @@
 import { resolvePrompt, DEFAULT_PROMPT_VERSION, type PromptKey } from '../prompts';
+import type { Alignment, BiasLabel } from '@/lib/types';
 
 const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 const OPENAI_MODEL = 'gpt-4o-mini';
@@ -41,5 +42,10 @@ export async function openAISentiment({ text, promptKey, promptVersion, promptOv
     sentiment: (typeof obj['sentiment'] === 'string' ? obj['sentiment'] : 'neutral') as string,
     score: (typeof obj['score'] === 'number' ? (obj['score'] as number) : 0),
     reasoning: (typeof obj['reasoning'] === 'string' ? (obj['reasoning'] as string) : ''),
+    alignment: (typeof obj['alignment'] === 'string' ? (obj['alignment'] as Alignment) : undefined),
+    alignmentScore: (typeof obj['alignment_score'] === 'number' ? (obj['alignment_score'] as number) : undefined),
+    confidence: (typeof obj['confidence'] === 'number' ? (obj['confidence'] as number) : undefined),
+    stanceLabel: (typeof obj['stance_label'] === 'string' ? (obj['stance_label'] as BiasLabel | 'none') : undefined),
+    stanceScore: (typeof obj['stance_score'] === 'number' ? (obj['stance_score'] as number) : (obj['stance_score'] === null ? null : undefined)),
   } as const;
 }

@@ -5,10 +5,11 @@ import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useAnalysis } from "../../../../context/AnalysisContext";
 import SubredditResults from "../../../../components/SubredditResults";
+import { StatusMessage } from "../../../../components/StatusMessage";
 
 export default function SubredditPage() {
   const subreddit = (useParams() as { subreddit: string }).subreddit;
-  const { analyzeCommunity, result, error, isLoading } = useAnalysis();
+  const { analyzeCommunity, result, error, isLoading, phase, discussionProgress, communityName } = useAnalysis();
 
   useEffect(() => {
     if (subreddit) {
@@ -18,9 +19,7 @@ export default function SubredditPage() {
 
   return (
     <main>
-      {isLoading && <p className="text-gray-400">Analyzing r/{subreddit}...</p>}
-      {error && <p className="text-red-500">{error}</p>}
-  {result && <SubredditResults subreddit={subreddit} result={result} error={error} isLoading={isLoading} />}
+      <SubredditResults subreddit={subreddit} result={result} error={error} isLoading={isLoading} />
     </main>
   );
 }

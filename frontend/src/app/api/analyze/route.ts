@@ -20,21 +20,22 @@ export async function POST(request: Request) {
     if (!subredditMatch) return NextResponse.json({ error: 'Could not extract subreddit' }, { status: 400 });
     const subreddit = subredditMatch[1];
 
-  // Fetch subreddit top posts
-  const token = await getRedditAccessToken();
-  const { posts } = await fetchSubredditTopPosts(subreddit, token, REDDIT_TOP_LIMIT, REDDIT_TOP_TIME);
-  interface RedditPostNode { data?: { title?: string; url?: string; permalink?: string; author?: string; score?: number } }
+    // Fetch subreddit top posts
+    const token = await getRedditAccessToken();
+    const { posts } = await fetchSubredditTopPosts(subreddit, token, REDDIT_TOP_LIMIT, REDDIT_TOP_TIME);
+    interface RedditPostNode { data?: { title?: string; url?: string; permalink?: string; author?: string; score?: number } }
 
     // Extract external URLs
-  const urls: string[] = posts.map((p: RedditPostNode) => p?.data?.url as string).filter((u: string) => u && /^https?:\/\//.test(u));
+    const urls: string[] = posts.map((p: RedditPostNode) => p?.data?.url as string).filter((u: string) => u && /^https?:\/\//.test(u));
 
     // MBFC lookup (direct DB)
-  let biasResults: MBFCResult[] = [];
-  const biasCount: Record<string, number> = {};
+    let biasResults: MBFCResult[] = [];
+    const biasCount: Record<string, number> = {};
+    
     try {
       biasResults = await getMBFCBiasForUrls(urls);
-  for (const r of biasResults) if (r.bias) biasCount[r.bias] = (biasCount[r.bias] || 0) + 1;
-  } catch {
+      for (const r of biasResults) if (r.bias) biasCount[r.bias] = (biasCount[r.bias] || 0) + 1;
+    } catch {
       // proceed without MBFC
     }
 

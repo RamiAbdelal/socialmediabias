@@ -1,5 +1,28 @@
 import { ParamValue } from "next/dist/server/request/params";
 
+// =====================
+// Shared type contracts
+// =====================
+
+export type BiasLabel =
+  | 'Extreme-Left'
+  | 'Left'
+  | 'Left-Center'
+  | 'Least Biased'
+  | 'Right-Center'
+  | 'Right'
+  | 'Extreme-Right';
+
+export type Alignment = 'aligns' | 'opposes' | 'mixed' | 'unclear';
+
+export interface AlignmentFields {
+  alignment?: Alignment;
+  alignmentScore?: number; // -1..1
+  confidence?: number;     // 0..1
+  stanceLabel?: BiasLabel | 'none';
+  stanceScore?: number | null; // 0..10 or null
+}
+
 export interface BiasScore {
   score: number;
   confidence: number;
@@ -61,6 +84,8 @@ export interface AnalysisResult {
   communityName?: string;
   platform?: string;
   overallScore?: BiasScore;
+  // MBFC-only raw average (0..10). May be null when no known labels.
+  mbfcRaw?: number | null;
   signalResults?: SignalResult[];
   analysisDate?: string;
   redditPosts?: RedditPost[];
@@ -71,8 +96,8 @@ export interface AnalysisResult {
   urlsChecked?: number;
   discussionSignal?: {
     samples: DiscussionSample[];
-    leanRaw: number;           // -5..5 raw score
-    leanNormalized: number;    // 0..10 normalized
+  leanRaw: number;           // 0..10 raw average
+  leanNormalized: number;    // 0..10 normalized (clamped)
     label: string;             // label bucket
   };
 }
@@ -86,7 +111,7 @@ export type DiscussionSample = {
   sentiment: 'positive' | 'negative' | 'neutral';
   engagement: number;
   sampleComments: string[];
-  aiMeta?: {
+  aiMeta?: (AlignmentFields & {
     provider: string;
     sentiment?: string;
     score?: number;
@@ -94,7 +119,12 @@ export type DiscussionSample = {
     model?: string;
     cached?: boolean;
     error?: boolean;
-  } | null;
+  }) | null;
+  // Derived fields (server-computed) for display
+  refinedLean?: number;  // 0..10 per-sample refined score
+  refinedLabel?: string; // MBFC-like label for refinedLean
+  baseScoreUsed?: number;        // 0..10 base stance used
+  alignmentScoreUsed?: number;   // -1..1 mapped
 };
 
 export interface SubredditResultsProps {

@@ -56,7 +56,7 @@
   --card-foreground: oklch(0.9551 0 0);
   --popover: oklch(0.2568 0.0076 274.6528);
   --popover-foreground: oklch(0.9551 0 0);
-  --primary: oklch(0.8920 0.1898 154.0889);
+  --primary: oklch(89.479% 0.14778 92.292);
   --primary-foreground: oklch(0.3303 0.0384 176.9813);
   --secondary: oklch(0.2940 0.0130 272.9312);
   --secondary-foreground: oklch(0.9551 0 0);
@@ -180,4 +180,44 @@ h1, h2, h3, h4, h5, h6 {
       border-bottom-right-radius: 0;
     }
   }
+}
+
+.status-text {
+  display: inline-block;
+  background: linear-gradient(
+    135deg, #ffffff 0%, 
+    #ffffff 40%, 
+    #777777 50%, 
+    #ffffff 60%, 
+    #ffffff 100%
+  );
+  background-size: 200% 100%;
+  background-position: 200% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.status-text--anim {
+  animation: shimmer 3s 1.5s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.status-text--stop {
+  animation: status-to-white 0.35s ease-out forwards;
+}
+
+@keyframes status-to-white {
+  to {
+    background-position: 200% 0;
+  }
+}
+
+.status-text--white {
+  background-position: 150% 0;
 }
