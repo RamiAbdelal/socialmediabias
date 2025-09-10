@@ -110,6 +110,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
           biasBreakdown: data.biasBreakdown,
           details: data.details,
           urlsChecked: data.urlsChecked,
+          mbfcRaw: data.mbfcRaw ?? null,
           overallScore: data.overallScore,
         }));
 
@@ -121,7 +122,7 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
         const data = JSON.parse(ev.data);
 
-        console.log('[SSE:event] discussion', data?.progress);
+        console.log('[SSE:event] discussion', data?.progress, data);
 
         setResult(prev => ({
           ...(prev || {}),

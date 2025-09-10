@@ -3,7 +3,7 @@ import { getMBFCBiasForUrls, MBFCResult } from '@/server/mbfc-signal';
 import { analyzeSentiment, type SentimentResult } from '@/server/ai/adapter';
 import type { PromptKey } from '@/server/ai/prompts';
 import { getRedditAccessToken, fetchSubredditTopPosts, fetchCommentsWithBackoff, extractTopLevelCommentBodies, type RedditPostNode } from '@/server/reddit';
-import { labelForScore, heuristicSentiment, computeLean } from '@/server/scoring';
+import { labelForScore, computeLean, mapBiasToScore, KNOWN_BIAS_LABELS, computeRefinedLean } from '@/server/scoring';
 import { getCache, setCache } from '@/server/cache';
 import type { DiscussionSample } from '@/lib/types';
 import { summarizeForLog } from '@/server/reddit';
@@ -84,26 +84,49 @@ export async function GET(req: NextRequest) {
                 biasCount[r.bias] = (biasCount[r.bias] || 0) + 1;
               }
             }
-            
+
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
             console.error('[SSE] MBFC lookup failed:', message);
           }
           
-          const mbfcFound = Object.keys(biasCount).length > 0;
-          const provisionalScore = 5; // centered placeholder
+          // Filter unknown labels from the count map
+          const filteredBiasCount = Object.fromEntries(
+            Object.entries(biasCount).filter(([label]) => KNOWN_BIAS_LABELS.includes(label) || label === 'Questionable')
+          ) as Record<string, number>;
+
+          const mbfcFound = Object.keys(filteredBiasCount).length > 0;
+
+          // Weighted average over known labels only
+          const { sumWeighted, sumCount } = Object.entries(filteredBiasCount).reduce(
+            (acc, [label, count]) => {
+              const val = mapBiasToScore(label);
+              if (val === null) return acc; // ignore unknown labels entirely
+              acc.sumWeighted += val * count;
+              acc.sumCount += count;
+              return acc;
+            },
+            { sumWeighted: 0, sumCount: 0 }
+          );
+
+          const provisionalScore = sumCount > 0 ? (sumWeighted / sumCount) : null;
           const confidence = mbfcFound ? 0.5 : 0.3;
 
           console.log('[SSE] Phase B MBFC found', mbfcFound, 'details:', biasResults.length);
+
+          /**
+           * 
+           */
 
           writeEvent('mbfc', {
             biasBreakdown: biasCount,
             details: biasResults,
             urlsChecked: urls.length,
-            overallScore: { 
-              score: provisionalScore, 
-              label: labelForScore(provisionalScore), 
-              confidence 
+            mbfcRaw: provisionalScore,
+            overallScore: {
+              score: provisionalScore,
+              label: typeof provisionalScore === 'number' ? labelForScore(provisionalScore) : null,
+              confidence
             },
           });
 
@@ -171,6 +194,9 @@ export async function GET(req: NextRequest) {
           const pending = [...candidates];
 
           async function runOne(p: RedditPostNode) {
+            function isSentimentResult(x: unknown): x is SentimentResult {
+              return typeof x === 'object' && x !== null && 'provider' in x && 'model' in x;
+            }
 
             // small jitter 50-200ms
             const delay = JITTER_MIN_MS + Math.floor(Math.random() * (JITTER_MAX_MS - JITTER_MIN_MS));
@@ -182,9 +208,7 @@ export async function GET(req: NextRequest) {
 
             const thread = await fetchCommentsWithBackoff(d.permalink!, token, COMMENT_TIMEOUT_MS);
             const bodies = thread ? extractTopLevelCommentBodies(thread) : [];
-            const heuristic = heuristicSentiment(bodies);
 
-            let sentiment = heuristic as 'positive'|'negative'|'neutral'|string;
             let aiMeta: (SentimentResult | { provider: string; error: true }) | null = null;
 
             try {
@@ -192,12 +216,19 @@ export async function GET(req: NextRequest) {
               if (process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY) {
 
                 const title = d.title || '';
-                const textBlob = `TITLE: ${title}\n---\n` + bodies.join('\n---\n');
+                const commentsBlob = bodies.join('\n---\n');
                 const promptKey: PromptKey = biasLabel ? 'stance_source' : 'stance_title';
 
-                const ai = await analyzeSentiment({ text: textBlob, promptKey });
+                // Build context with explicit source bias when available
+                const sourceBias = biasLabel ? `SOURCE_BIAS: label=${biasLabel}, score=${mapBiasToScore(biasLabel) ?? ''}` : '';
+                const textBlob = [
+                  sourceBias,
+                  `TITLE: ${title}`,
+                  '---',
+                  commentsBlob
+                ].filter(Boolean).join('\n');
 
-                if (['positive','negative','neutral'].includes(ai.sentiment)) sentiment = ai.sentiment;
+                const ai = await analyzeSentiment({ text: textBlob, promptKey });
                 aiMeta = ai;
               }
 
@@ -210,14 +241,41 @@ export async function GET(req: NextRequest) {
              */
             const engagement = (d.num_comments || 0) + (d.score || 0) / 100;
 
+            // Derive per-sample refined lean for display (computeLean will recompute aggregate)
+            const mbfcBase = mapBiasToScore(biasLabel);
+            const aiBase = (isSentimentResult(aiMeta) && typeof aiMeta.stanceScore === 'number')
+              ? aiMeta.stanceScore
+              : (isSentimentResult(aiMeta) && typeof aiMeta.stanceLabel === 'string'
+                ? mapBiasToScore(aiMeta.stanceLabel)
+                : null);
+            let baseUsed: number | null = mbfcBase != null ? mbfcBase : (aiBase != null ? aiBase : null);
+            if (baseUsed == null && isSentimentResult(aiMeta) && (aiMeta.stanceLabel === 'none' || aiMeta.alignment === 'unclear')) {
+              baseUsed = 5;
+            }
+            // Map alignment category → numeric alignment score if needed
+            const aScore = isSentimentResult(aiMeta) && typeof aiMeta.alignmentScore === 'number'
+              ? aiMeta.alignmentScore
+              : (isSentimentResult(aiMeta) && typeof aiMeta.alignment === 'string'
+                ? (aiMeta.alignment === 'aligns' ? 1 : aiMeta.alignment === 'opposes' ? -1 : aiMeta.alignment === 'mixed' ? 0.25 : 0)
+                : 0);
+            const refinedLean = baseUsed != null ? computeRefinedLean(baseUsed, aScore) : undefined;
+
+            // Narrow aiMeta to the alignment-capable shape for storage (or null on error)
+            const aiForSample: (SentimentResult | { provider: string; error: true } | null) =
+              (aiMeta && 'error' in aiMeta) ? aiMeta : (isSentimentResult(aiMeta) ? aiMeta : null);
+
             samples.push({ 
               title: d.title || '', url: d.url!, 
               permalink: d.permalink!, 
               bias: biasLabel, 
-              sentiment: (sentiment as 'positive'|'negative'|'neutral'), 
+              sentiment: 'neutral', // legacy field unused in alignment mode
               engagement, 
               sampleComments: bodies.slice(0,3), 
-              aiMeta 
+              aiMeta: aiForSample as (SentimentResult | { provider: string; error: true } | null),
+              refinedLean,
+              refinedLabel: typeof refinedLean === 'number' ? labelForScore(refinedLean) : undefined,
+              baseScoreUsed: baseUsed == null ? undefined : baseUsed,
+              alignmentScoreUsed: aScore,
             });
 
             done++;

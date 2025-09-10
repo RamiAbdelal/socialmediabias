@@ -1,13 +1,11 @@
 // ================== NEW REFACTORED COMPONENT ==================
 import React, { useReducer, useMemo, useState, useEffect } from 'react';
-import { useAnalysis } from '../context/AnalysisContext';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import RedditSignalCard from './RedditSignalCard';
 import { FilterPanel, filterReducer, initialFilterState, applyFilters } from './FilterPanel';
 import type { MBFCDetail, SubredditResultsProps, RedditSignal } from '../lib/types';
 import { Reddit } from '../lib/types';
-import { isImageUrl, isGalleryUrl, defaultRedditSignal, getBiasColor, getConfidenceColor } from '../lib/utils';
+import { isImageUrl, isGalleryUrl, defaultRedditSignal } from '../lib/utils';
 import { StatusMessage } from './StatusMessage';
 
 const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, error, isLoading }) => {
@@ -65,6 +63,12 @@ const statusMessage = (
     <StatusMessage />
 )
 
+  // Safe fallbacks for possibly-null values during progressive SSE updates
+  const overallScoreValue: number = typeof result?.overallScore?.score === 'number' ? result!.overallScore!.score : 5;
+  const overallConfidencePct: number = typeof result?.overallScore?.confidence === 'number'
+    ? Math.round(result!.overallScore!.confidence * 100)
+    : 0;
+
   return (
     <div>
       {error && (
@@ -95,12 +99,12 @@ const statusMessage = (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-lg shadow-xl p-4 bg-muted/30 border border-border/60">
               <h3 className="text-lg font-medium mb-2 text-foreground">Overall Bias Score</h3>
-              <div className={`text-4xl font-bold ${getBiasColor(result.overallScore.score)} bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent`}>{result.overallScore.score.toFixed(1)}/10</div>
+              <div className={`text-4xl font-bold bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent`}>{overallScoreValue.toFixed(1)}/10</div>
               <div className="capitalize text-muted-foreground">{result.overallScore.label}</div>
             </div>
             <div className="rounded-lg shadow-xl p-4 bg-muted/30 border border-border/60">
               <h3 className="text-lg font-medium mb-2 text-foreground">Confidence</h3>
-              <div className={`text-4xl font-semibold ${getConfidenceColor(result.overallScore.confidence)} bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent`}>{Math.round(result.overallScore.confidence * 100)}%</div>
+              <div className={`text-4xl font-semibold bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent`}>{overallConfidencePct}%</div>
               <div className="text-muted-foreground">Analysis confidence</div>
             </div>
           </div>
@@ -113,7 +117,7 @@ const statusMessage = (
               {/* <h3 className="text-lg font-medium text-foreground pb-4">Discussion Sentiment</h3> */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Normalized Lean</div><div className="text-2xl font-semibold text-foreground">{result.discussionSignal.leanNormalized.toFixed(2)} / 10</div><div className="text-sm capitalize text-muted-foreground">{result.discussionSignal.label}</div></div>
-                <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Raw Lean (-5..5)</div><div className="text-2xl font-semibold text-foreground">{result.discussionSignal.leanRaw.toFixed(2)}</div><div className="text-xs text-muted-foreground">Weighted by engagement</div></div>
+                <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Raw Lean (MBFC)</div><div className="text-2xl font-semibold text-foreground">{typeof result.mbfcRaw === 'number' ? result.mbfcRaw.toFixed(2) : '—'}</div><div className="text-xs text-muted-foreground">Average across known MBFC labels</div></div>
                 <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Samples</div><div className="text-2xl font-semibold text-foreground">{result.discussionSignal.samples.length}</div><div className="text-xs text-muted-foreground">posts analyzed</div></div>
               </div>
               <div className="overflow-x-auto rounded-lg border border-border/60 bg-background/40">
@@ -122,7 +126,7 @@ const statusMessage = (
                     <tr>
                       <th className="text-left p-2 font-medium">Post Title</th>
                       <th className="text-left p-2 font-medium">MBFC Bias</th>
-                      <th className="text-left p-2 font-medium">Sentiment</th>
+                      <th className="text-left p-2 font-medium">Alignment</th>
                       {/* <th className="text-left p-2 font-medium">AI</th> */}
                       <th className="text-left p-2 font-medium">Engagement</th>
                       <th className="text-left p-2 font-medium">Comments (sample)</th>
@@ -131,9 +135,17 @@ const statusMessage = (
                   <tbody>
                     {result.discussionSignal.samples.map(s => (
                       <tr key={s.permalink} className="border-t border-border/50 align-top">
-                        <td className="p-2 max-w-xs"><a href={`https://reddit.com${s.permalink}`} target="_blank" rel="noopener" className="text-primary hover:underline">{s.title}</a></td>
+                        <td className="p-2 max-w-xs"><a href={`https://reddit.com${s.permalink}`} target="_blank" rel="noopener" className="text-primary--foreground hover:underline">{s.title}</a></td>
                         <td className="p-2 text-xs whitespace-nowrap text-foreground/70">{s.bias}</td>
-                        <td className="p-2 text-xs capitalize"><span className={s.sentiment === 'positive' ? 'text-green-400' : s.sentiment === 'negative' ? 'text-red-400' : 'text-muted-foreground'}>{s.sentiment}</span></td>
+                        <td className="p-2 text-xs capitalize">
+                          {s.aiMeta && s.aiMeta.alignment ? (
+                            <span className={s.aiMeta.alignment === 'aligns' ? 'text-green-400' : s.aiMeta.alignment === 'opposes' ? 'text-red-400' : 'text-muted-foreground'}>
+                              {s.aiMeta.alignment}{s.refinedLabel ? ` / ${s.refinedLabel}` : ''}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">unclear</span>
+                          )}
+                        </td>
                         {/* <td className="p-2 text-[10px]">
                           {s.aiMeta ? (
                             s.aiMeta.error ? (
@@ -158,7 +170,7 @@ const statusMessage = (
                   </tbody>
                 </table>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Heuristic baseline; AI sentiment shown when provider available.</p>
+              <p className="text-xs text-muted-foreground mt-2">Editorial alignment (aligns/opposes/mixed/unclear) with per-sample refined label based on MBFC/title stance.</p>
             </div>
           )}
 
