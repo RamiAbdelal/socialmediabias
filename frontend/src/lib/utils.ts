@@ -49,3 +49,61 @@ export const isGalleryUrl = (url: string) => {
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+// ============================
+// Subreddit normalization utils
+// ============================
+
+/** Extract a subreddit name from input: URL, 'r/foo', or plain 'foo'. Returns 'r/foo' normalized or null. */
+export function extractSubreddit(input: string): string | null {
+  const raw = (input || '').trim();
+  if (!raw) return null;
+  // Match full URL
+  const urlMatch = raw.match(/reddit\.com\/r\/([A-Za-z0-9_]+)/i);
+  if (urlMatch) return `r/${urlMatch[1]}`;
+  // Match r/foo
+  const rMatch = raw.match(/^r\/[A-Za-z0-9_]+$/i);
+  if (rMatch) return raw.toLowerCase();
+  // Plain word
+  const word = raw.match(/^[A-Za-z0-9_]+$/);
+  if (word) return `r/${raw.toLowerCase()}`;
+  return null;
+}
+
+/** Ensure subreddit is formatted as 'r/foo'. */
+export function formatSubreddit(name: string): string {
+  if (!name) return '';
+  return name.toLowerCase().startsWith('r/') ? name.toLowerCase() : `r/${name.toLowerCase()}`;
+}
+
+// ===============
+// Small utilities
+// ===============
+
+export function debounce<Args extends unknown[]>(fn: (...args: Args) => void, wait = 250) {
+  let t: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Args) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+export class LRUCache<K, V> {
+  private map = new Map<K, { v: V; at: number }>();
+  constructor(private max = 50) {}
+  get(key: K): V | undefined {
+    const hit = this.map.get(key);
+    if (!hit) return undefined;
+    this.map.delete(key);
+    this.map.set(key, { v: hit.v, at: Date.now() });
+    return hit.v;
+  }
+  set(key: K, value: V) {
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, { v: value, at: Date.now() });
+    if (this.map.size > this.max) {
+      const oldest = [...this.map.entries()].sort((a, b) => a[1].at - b[1].at)[0]?.[0];
+      if (oldest !== undefined) this.map.delete(oldest);
+    }
+  }
+}

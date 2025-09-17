@@ -230,6 +230,7 @@ export async function GET(req: NextRequest) {
 
                 const ai = await analyzeSentiment({ text: textBlob, promptKey });
                 aiMeta = ai;
+                console.log(`[SSE] AI ${ai.provider} ${ai.model} for`, summarizeForLog('input', { title, commentCount: bodies.length }), '→', ai);
               }
 
             } catch { 
