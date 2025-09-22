@@ -134,6 +134,18 @@ export interface SubredditResultsProps {
   isLoading: boolean;
 }
 
+// Table row type for discussion samples presented in the UI DataTable
+export interface DiscussionRow {
+  id: string; // stable identifier (e.g., permalink)
+  title: string;
+  permalink: string;
+  bias?: string;
+  alignment?: Alignment;
+  refinedLabel?: string;
+  engagement: number;
+  sampleComments: string[];
+}
+
 // Suggestions used by autocomplete/search
 export interface SubredditSuggestion {
   name: string;          // 'r/news'

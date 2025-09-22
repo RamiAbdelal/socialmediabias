@@ -1,5 +1,6 @@
+"use client";
 // ================== NEW REFACTORED COMPONENT ==================
-import React, { useReducer, useMemo, useState, useEffect } from 'react';
+import React, { useReducer, useMemo, useState, useEffect, useCallback } from 'react';
 import { Card, CardBody, CardHeader } from '@/components/ui/card';
 import RedditSignalCard from './RedditSignalCard';
 import { FilterPanel, filterReducer, initialFilterState, applyFilters } from './FilterPanel';
@@ -7,6 +8,10 @@ import type { MBFCDetail, SubredditResultsProps, RedditSignal } from '../lib/typ
 import { Reddit } from '../lib/types';
 import { isImageUrl, isGalleryUrl, defaultRedditSignal } from '../lib/utils';
 import { StatusMessage } from './StatusMessage';
+import { ChartLineInteractive } from '@/components/chart-line-interactive';
+import { useAnalysis } from '@/context/AnalysisContext';
+import { DataTableDiscussion } from './DataTableDiscussion';
+import type { DiscussionRow } from '@/lib/types';
 
 const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, error, isLoading }) => {
   
@@ -33,6 +38,62 @@ const SubredditResults: React.FC<SubredditResultsProps> = ({ subreddit, result, 
   }, [result]);
 
   const filteredDetails = useMemo(() => applyFilters(allDetails, filters), [allDetails, filters]);
+
+  type SeriesPoint = { t: string; biasScore: number | null; confidence: number | null };
+  const [series, setSeries] = useState<SeriesPoint[]>([]);
+  const [seriesLoading, setSeriesLoading] = useState<boolean>(false);
+  const [seriesError, setSeriesError] = useState<string | null>(null);
+  const [rangeDays, setRangeDays] = useState<7 | 30 | 90>(30);
+  const [groupBy, setGroupBy] = useState<'none'|'day'>('day');
+
+  /**
+   * Fetch and set analytics time-series for the current subreddit.
+   * Invoked on mount and after SSE 'done' to hydrate the chart with
+   * newly persisted analysis results.
+   */
+  const loadSeries = useCallback(async (signal?: AbortSignal) => {
+    if (!subreddit) return;
+    setSeriesLoading(true);
+    setSeriesError(null);
+    try {
+      const sinceIso = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString();
+      const params = new URLSearchParams({
+        limit: '500',
+        since: sinceIso,
+        groupBy,
+      });
+      const res = await fetch(`/api/analytics/subreddit/${encodeURIComponent(String(subreddit))}?${params.toString()}`, {
+        cache: 'no-store',
+        signal,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      setSeries((json?.data ?? []) as SeriesPoint[]);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError')) {
+        setSeriesError(e instanceof Error ? e.message : String(e));
+      }
+    } finally {
+      setSeriesLoading(false);
+    }
+  }, [subreddit, rangeDays, groupBy]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    loadSeries(ac.signal);
+    return () => ac.abort();
+  }, [subreddit, loadSeries, rangeDays, groupBy]);
+
+  // When SSE completes ('done' → phase becomes 'ready'), refresh analytics to hydrate chart
+  const { phase } = useAnalysis();
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    // slight delay to ensure server persisted the new analysis
+    const t = setTimeout(() => {
+      void loadSeries();
+    }, 200);
+    return () => clearTimeout(t);
+  }, [phase, loadSeries]);
 
   // OG Image logic (unchanged, simplified)
   async function fetchOgImage(url: string): Promise<string | null> {
@@ -110,6 +171,51 @@ const statusMessage = (
           </div>
         </CardBody>
 
+        {/* Historical Chart */}
+        <CardBody className="p-6 pt-0">
+          <div className="rounded-lg p-4 bg-muted/30 border border-border/60">
+            <div className="flex items-center justify-between mb-2 gap-3">
+              <h3 className="text-lg font-medium text-foreground">Historical Bias & Confidence</h3>
+              <div className="flex items-center gap-2 text-xs">
+                <label className="text-muted-foreground">Range:</label>
+                <select
+                  className="bg-background/60 border border-border/60 rounded px-2 py-1"
+                  value={rangeDays}
+                  onChange={e => setRangeDays(Number(e.target.value) as 7|30|90)}
+                >
+                  <option value={7}>7d</option>
+                  <option value={30}>30d</option>
+                  <option value={90}>90d</option>
+                </select>
+                <label className="text-muted-foreground ml-2">Group:</label>
+                <select
+                  className="bg-background/60 border border-border/60 rounded px-2 py-1"
+                  value={groupBy}
+                  onChange={e => setGroupBy(e.target.value as 'none'|'day')}
+                >
+                  <option value="day">per-day</option>
+                  <option value="none">raw</option>
+                </select>
+                <a
+                  href={`/api/analytics/subreddit/${encodeURIComponent(String(subreddit))}?since=${encodeURIComponent(new Date(Date.now() - rangeDays * 86400000).toISOString())}&limit=1000&groupBy=${groupBy}&format=csv`}
+                  className="ml-2 underline text-primary"
+                >
+                  Download CSV
+                </a>
+                {seriesLoading && <span className="text-muted-foreground">Loading…</span>}
+              </div>
+            </div>
+            {seriesError ? (
+              <div className="text-sm text-destructive">{seriesError}</div>
+            ) : (
+              <ChartLineInteractive data={series} />
+            )}
+            <div className="mt-2 text-xs text-muted-foreground">
+              <a href={`/analytics/r/${encodeURIComponent(String(subreddit))}`} className="underline">View full analytics</a>
+            </div>
+          </div>
+        </CardBody>
+
         {/* Discussion Sentiment */}
         <CardBody className="px-6 py-0">
           {result.discussionSignal && (
@@ -120,55 +226,20 @@ const statusMessage = (
                 <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Raw Lean (MBFC)</div><div className="text-2xl font-semibold text-foreground">{typeof result.mbfcRaw === 'number' ? result.mbfcRaw.toFixed(2) : '—'}</div><div className="text-xs text-muted-foreground">Average across known MBFC labels</div></div>
                 <div className="rounded-lg p-4 bg-muted/30 border border-border/60"><div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Samples</div><div className="text-2xl font-semibold text-foreground">{result.discussionSignal.samples.length}</div><div className="text-xs text-muted-foreground">posts analyzed</div></div>
               </div>
-              <div className="overflow-x-auto rounded-lg border border-border/60 bg-background/40">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50 text-muted-foreground">
-                    <tr>
-                      <th className="text-left p-2 font-medium">Post Title</th>
-                      <th className="text-left p-2 font-medium">MBFC Bias</th>
-                      <th className="text-left p-2 font-medium">Alignment</th>
-                      {/* <th className="text-left p-2 font-medium">AI</th> */}
-                      <th className="text-left p-2 font-medium">Engagement</th>
-                      <th className="text-left p-2 font-medium">Comments (sample)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.discussionSignal.samples.map(s => (
-                      <tr key={s.permalink} className="border-t border-border/50 align-top">
-                        <td className="p-2 max-w-xs"><a href={`https://reddit.com${s.permalink}`} target="_blank" rel="noopener" className="text-primary--foreground hover:underline">{s.title}</a></td>
-                        <td className="p-2 text-xs whitespace-nowrap text-foreground/70">{s.bias}</td>
-                        <td className="p-2 text-xs capitalize">
-                          {s.aiMeta && s.aiMeta.alignment ? (
-                            <span className={s.aiMeta.alignment === 'aligns' ? 'text-green-400' : s.aiMeta.alignment === 'opposes' ? 'text-red-400' : 'text-muted-foreground'}>
-                              {s.aiMeta.alignment}{s.refinedLabel ? ` / ${s.refinedLabel}` : ''}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">unclear</span>
-                          )}
-                        </td>
-                        {/* <td className="p-2 text-[10px]">
-                          {s.aiMeta ? (
-                            s.aiMeta.error ? (
-                              <Badge variant="outline" className="bg-destructive/20 text-destructive border border-destructive/40">AI Err</Badge>
-                            ) : (
-                              <Badge variant="outline" title={s.aiMeta.reasoning || ''} className="bg-muted/50 border-border text-foreground/80">
-                                {s.aiMeta.provider}{s.aiMeta.cached ? ' (cached)' : ''}
-                              </Badge>
-                            )
-                          ) : (
-                            <span className="text-muted-foreground/60">heuristic</span>
-                          )}
-                        </td> */}
-                        <td className="p-2 text-xs text-foreground/80">{s.engagement.toFixed(1)}</td>
-                        <td className="p-2 text-xs">
-                          <ul className="space-y-1 list-disc ml-4 text-foreground/80">
-                            {s.sampleComments.slice(0,3).map((c,i) => (<li key={i} className="truncate max-w-xs" title={c}>{c}</li>))}
-                          </ul>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="overflow-x-auto">
+                {(() => {
+                  const rows: DiscussionRow[] = result.discussionSignal!.samples.map((s) => ({
+                    id: s.permalink,
+                    title: s.title,
+                    permalink: s.permalink,
+                    bias: s.bias,
+                    alignment: s.aiMeta?.alignment,
+                    refinedLabel: s.refinedLabel,
+                    engagement: s.engagement,
+                    sampleComments: s.sampleComments,
+                  }));
+                  return <DataTableDiscussion data={rows} />;
+                })()}
               </div>
               <p className="text-xs text-muted-foreground mt-2">Editorial alignment (aligns/opposes/mixed/unclear) with per-sample refined label based on MBFC/title stance.</p>
             </div>

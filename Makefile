@@ -82,6 +82,19 @@ health:
 mysql-shell:
 	docker exec -it mysql mysql -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} $${MYSQL_DATABASE}
 
+# Open Redis CLI shell inside the redis container
+redis-shell:
+	docker exec -it redis redis-cli
+
+# List cached keys (our prefix)
+redis-keys:
+	docker exec -it redis redis-cli --scan --pattern 'smb:*'
+
+# Clear only our cache keys (safe; does not FLUSHALL)
+redis-clear:
+	@echo "Deleting keys with prefix smb:*"
+	docker exec -i redis sh -lc "redis-cli --scan --pattern 'smb:*' | xargs -r redis-cli del"
+
 # Backend reload
 backend-reload:
 	@echo "(No backend) – skipping."
@@ -102,3 +115,9 @@ help:
 	@echo "  clean        - Clean up containers and images"
 	@echo "  health       - Check service health"
 	@echo "  help         - Show this help"
+
+# Nightly materialization (calendar day UTC)
+materialize-yesterday:
+	@echo "Materializing yesterday (UTC) for configured subreddits..."
+	docker compose up -d frontend
+	docker exec -e SITE_URL="$$URL_LOCAL" -it frontend sh -lc 'node scripts/materialize-yesterday.mjs'

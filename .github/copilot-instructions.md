@@ -5,7 +5,7 @@ Goal: Make agents productive fast with this repo’s actual architecture and wor
 ### Architecture snapshot (Next.js-only server)
 - Frontend: `frontend/` (Next.js 15 App Router, React 19, Tailwind v4, HeroUI-style UI).
 - Server APIs live inside Next.js: `frontend/src/app/api/*` (Express backend removed).
-- Data: MySQL 8 via `mysql2/promise`; schema in `database/init.sql` with table `mbfc.mbfc_sources` (plus `analysis_results`).
+- Data: MySQL 8 via `mysql2/promise` + Drizzle ORM. Core tables: `mbfc.mbfc_sources` (dataset), `mbfc.analysis_results` (summary sink), `mbfc.ai_results` (AI cache).
 - Reverse proxy: NGINX (SSE passthrough for `/api/analyze/stream`).
 
 ### Key server modules (where to work)
@@ -18,6 +18,9 @@ Goal: Make agents productive fast with this repo’s actual architecture and wor
 - `src/server/ai/prompts.ts` – centralized, versioned prompts. Keys: `stance_source`, `stance_title`.
 - `src/server/ai/providers/{deepseek,openai}.ts` – provider callers; use `resolvePrompt` and return JSON-only.
 - `src/server/ai/adapter.ts` – provider fallback order and normalization.
+ - `src/server/db/schema.ts` – Drizzle tables (`ai_results`, `analysis_results`, `mbfc_sources`).
+ - `src/server/db/client.ts` – Drizzle client using `mysql2/promise` pool.
+ - `src/server/persistence.ts` – Save AI results and analysis summaries.
 
 ### Client state & UI
 - Global state: `src/context/AnalysisContext.tsx` (consumes SSE, merges phases progressively).
@@ -27,10 +30,14 @@ Goal: Make agents productive fast with this repo’s actual architecture and wor
 ### MBFC data and ingestion
 - Load dataset once into MySQL: `frontend/scripts/ingest-mbfc.mjs` (stream-json importer). Mounted file `database/mbfc-current.json` → `/app/database/mbfc-current.json` in container.
 - Automation: `make db-init` (apply schema), `make db-ingest-mbfc` (run importer), `make db-seed` (both). Verify with a COUNT query.
+ - Migrations: run from `frontend/` using Drizzle CLI.
+   - `npm run db:generate` to generate SQL
+   - `npm run db:migrate` to push/apply
 
 ### Dev vs container gotcha (DB host)
 - In Docker (port 9005): use `MYSQL_HOST=mysql`.
 - Local dev (port 3000): create `frontend/.env.local` with `MYSQL_HOST=127.0.0.1` (not `mysql`), plus the same DB creds. Otherwise MBFC lookups return empty.
+ - Redis is available in Docker at `redis://redis:6379` via `REDIS_URL`, but code currently falls back to in-memory caches.
 
 ### SSE and robustness patterns
 - Headers: disable proxy buffering (`X-Accel-Buffering: no`); NGINX location for `/api/analyze/stream` should set `proxy_buffering off`.
@@ -45,6 +52,7 @@ Goal: Make agents productive fast with this repo’s actual architecture and wor
 ### Project conventions
 - Keep API routes small; put heavy logic in `src/server/*` helpers.
 - Config constants at file top; JSDoc on helpers; avoid ORMs.
+ - Use Drizzle ORM for DB access where applicable (no heavy ORM patterns; typed SQL).
 - Error shape for routes: return `{ message }` on failure; SSE sends an `error` event then closes.
 
 ### Common workflows (commands)
@@ -85,6 +93,7 @@ If anything is unclear or cross-cutting, check `context.md`. Propose doc edits i
 5) Env safety: confirm `.env.local` vs container env expectations when touching DB/AI keys.
  6) Typesafe: no `any`, no `as` assertions; new shapes live in `src/lib/types.ts`.
  7) File size check: no single source file exceeds ~300 LOC without an accompanying refactor note or justified exception. Prefer splitting large files.
+ 8) Migration safety: never drop `mbfc_sources`; prefer additive migrations and create-if-not-exists; decimals stored as strings when persisting to MySQL DECIMAL columns.
 
 ### DRY example (what to do)
 - Bad: recomputing lean metrics in multiple places.

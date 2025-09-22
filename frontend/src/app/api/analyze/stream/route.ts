@@ -5,21 +5,12 @@ import type { PromptKey } from '@/server/ai/prompts';
 import { getRedditAccessToken, fetchSubredditTopPosts, fetchCommentsWithBackoff, extractTopLevelCommentBodies, type RedditPostNode } from '@/server/reddit';
 import { labelForScore, computeLean, mapBiasToScore, KNOWN_BIAS_LABELS, computeRefinedLean } from '@/server/scoring';
 import { getCache, setCache } from '@/server/cache';
+import { REDDIT_TOP_LIMIT, REDDIT_TOP_TIME, DISCUSSION_LIMIT, DISCUSSION_BATCH_SIZE, COMMENT_TIMEOUT_MS, JITTER_MIN_MS, JITTER_MAX_MS, ANALYSIS_CACHE_TTL_MS } from '@/server/config';
+import { saveSubredditAnalysis } from '@/server/persistence';
 import type { DiscussionSample } from '@/lib/types';
 import { summarizeForLog } from '@/server/reddit';
 
 export const runtime = 'nodejs';
-
-// ----- Config (edit here) -----
-const REDDIT_TOP_LIMIT = 25;
-const REDDIT_TOP_TIME = 'month' as const;
-const DISCUSSION_LIMIT = 6;         // total posts for Phase C
-const DISCUSSION_BATCH_SIZE = 3;    // emit after each batch of N
-const COMMENT_TIMEOUT_MS = 10_000;  // per-thread fetch timeout
-const JITTER_MIN_MS = 50;           // min per-task jitter to smooth bursts
-const JITTER_MAX_MS = 200;          // max per-task jitter to smooth bursts
-const CACHE_TIME = 10 * 60 * 1000;  // seconds to cache final discussion result
-// --------------------------------
 
 export async function GET(req: NextRequest) {
 
@@ -158,7 +149,7 @@ export async function GET(req: NextRequest) {
 
           const cacheKey = 'disc:' + keyParts.join('|');
 
-          const cached = getCache<{ 
+          const cached = await getCache<{ 
             discussionSignal: { 
                 samples: DiscussionSample[]; 
                 leanRaw: number; 
@@ -182,6 +173,38 @@ export async function GET(req: NextRequest) {
                 total: candidates.length 
               }, cached: true 
             });
+
+            // Persist even when served from cache to build historical record
+            try {
+              const overall = cached.overallScore;
+              const mbfcRawScoreNum = typeof overall?.score === 'number' ? overall.score : null;
+              const confidenceNum = typeof overall?.confidence === 'number' ? overall.confidence : null;
+              const samplesArr = cached.discussionSignal.samples || [];
+              const biasCountFromSamples = samplesArr.reduce((acc: Record<string, number>, s) => {
+                const b = s.bias || 'Unknown';
+                acc[b] = (acc[b] || 0) + 1;
+                return acc;
+              }, {} as Record<string, number>);
+              const urlsCount = new Set(samplesArr.map(s => s.url)).size;
+              await saveSubredditAnalysis({
+                communityName: subreddit,
+                platform: 'reddit',
+                biasScore: mbfcRawScoreNum == null ? null : String(mbfcRawScoreNum),
+                confidence: confidenceNum == null ? null : String(confidenceNum),
+                analysisDate: new Date(),
+                signalBreakdown: {
+                  discussion: {
+                    leanRaw: cached.discussionSignal.leanRaw,
+                    leanNormalized: cached.discussionSignal.leanNormalized,
+                    label: cached.discussionSignal.label,
+                  },
+                  counts: { samples: samplesArr.length, urls: urlsCount },
+                  biasCount: biasCountFromSamples,
+                },
+              });
+            } catch (e) {
+              console.warn('[SSE] persist analysis (cached) failed', (e as Error)?.message || String(e));
+            }
 
             writeEvent('done', { ok: true, cached: true });
             return;
@@ -320,7 +343,26 @@ export async function GET(req: NextRequest) {
             overallScore 
           }
 
-          setCache(cacheKey, discussionSignal, CACHE_TIME);
+          await setCache(cacheKey, discussionSignal, ANALYSIS_CACHE_TTL_MS);
+          // Persist one analysis row to analysis_results (existing schema)
+          try {
+            const mbfcRawScoreNum = typeof overallScore?.score === 'number' ? overallScore.score : null;
+            const confidenceNum = typeof overallScore?.confidence === 'number' ? overallScore.confidence : null;
+            await saveSubredditAnalysis({
+              communityName: subreddit,
+              platform: 'reddit',
+              biasScore: mbfcRawScoreNum == null ? null : String(mbfcRawScoreNum),
+              confidence: confidenceNum == null ? null : String(confidenceNum),
+              analysisDate: new Date(),
+              signalBreakdown: {
+                discussion: { leanRaw, leanNormalized, label: overallScore.label },
+                counts: { samples: samples.length, urls: urls.length },
+                biasCount,
+              },
+            });
+          } catch (e) {
+            console.warn('[SSE] persist analysis failed', (e as Error)?.message || String(e));
+          }
           
           writeEvent('done', { ok: true });
           console.log('[SSE] done');

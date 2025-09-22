@@ -227,6 +227,12 @@ Legacy Express backend decommissioned. All endpoints live in `frontend/src/app/a
 - `reddit-comment/route.ts` – Given a Reddit comment permalink, fetches `<permalink>.json` from Reddit and returns raw JSON inside `{ body }`.
 - `analyze/route.ts` – Non-streamed analysis endpoint.
 - `analyze/stream/route.ts` – SSE progressive analysis (reddit → mbfc → discussion → done).
+- `analytics/subreddit/[name]/route.ts` – Returns time series of `biasScore` and `confidence` for a subreddit. Supports `since`, `limit`, `groupBy=none|day`, and `format=json|csv` for CSV export.
+
+##### Frontend DB & Persistence (`src/server/db/*` and helpers)
+- `src/server/db/schema.ts` – Drizzle tables for `ai_results`, `analysis_results`, `mbfc_sources`.
+- `src/server/db/client.ts` – Drizzle client using `mysql2/promise` pool.
+- `src/server/persistence.ts` – Helpers to persist AI results and subreddit analysis summaries.
 
 ##### React Context & State
 - `context/AnalysisContext.tsx` – Central client-side state store (community name, loading, results, errors) to avoid prop drilling and support multi-route navigation.
@@ -238,9 +244,11 @@ Legacy Express backend decommissioned. All endpoints live in `frontend/src/app/a
 - `components/SubredditResults.tsx` – Orchestrates display of aggregated `AnalysisResult`: filters, bias score summary, MBFC + Reddit merged listing, dynamic OG image fetch, comment on-demand loading, and new source URL Select filter.
 - `components/RedditSignalCard.tsx` – Presentational card for a merged `RedditSignal` (MBFC detail + Reddit post) with lazy comment fetch button.
 - `components/RedditPostsSection.tsx` – (If present) Displays raw Reddit posts separate from MBFC detail list.
+- `components/chart-line-interactive.tsx` – Recharts-based time series chart for historical bias/confidence with UTC tooltip, legend, and null-safe rendering.
+- `components/DataTableDiscussion.tsx` – Lightweight shadcn-style data table (built on `@tanstack/react-table`) for discussion samples; supports sorting by engagement and pagination.
 
 ##### Lib & Utilities
-- `lib/types.ts` – TypeScript domain model: `BiasScore`, `SignalResult`, `MBFCDetail`, `RedditSignal`, `AnalysisResult` + full Reddit API type declarations.
+- `lib/types.ts` – TypeScript domain model: `BiasScore`, `SignalResult`, `MBFCDetail`, `RedditSignal`, `AnalysisResult`, `DiscussionRow` (table rows for discussion samples) + full Reddit API type declarations.
 - `lib/utils.ts` – Utility helpers: default object seeds, style mappers (`getBiasColor`, `getConfidenceColor`), media URL detectors.
 - `lib/popularSubreddits.js` – Static list used for UI selection/autocomplete.
 
@@ -268,6 +276,10 @@ interface AnalysisResult {
   };
 }
 ```
+
+Notes:
+- When persisting to `analysis_results`, numeric decimals are converted to strings to match MySQL DECIMAL handling.
+- `ai_results` stores provider/model plus stance/alignment fields for cache hits.
 
 ### 🧪 Comment Fetching Flow (On Demand)
 1. User clicks "Load Comment" on a `RedditSignalCard` with a comment-type permalink.
@@ -349,64 +361,20 @@ Usage:
 - Hover over filtered cards: ensure filters reduce card count logically.
 - OG image loads only for non-image URLs.
 
-## 🗺️ Future Evolution Outline
-| Dimension | Near Term | Mid Term | Long Term |
-|-----------|-----------|----------|-----------|
-| Signals | MBFC | Reddit Comments | Images / Video / Cross-platform |
-| Storage | Ephemeral | Persist MBFC lookups | Historical trend DB + analytics |
-| Scoring | Static heuristic | Weighted multi-signal | ML calibration + feedback loop |
-| Infra | Single VPS | Container health monitoring | Multi-region + CDN |
-| Auth | None | API key for backend | User accounts / personalization |
-
----
-Document updated: 2025-09-08 (SSE progressive streaming + backoff on Reddit comments; NGINX SSE notes)
-Maintainer: (update with your name/contact)
-
----
-
-## 🔐 Environment Configuration
-
-Create a `.env` file in the root directory:
-
-```env
-# Environment
-ENVIRONMENT=LOCAL
-SITE_URL=http://localhost:9005
-DOCKER_PORT_FRONTEND=9005
-DOCKER_PORT_BACKEND=9006
-BACKEND_INTERNAL_PORT=3001
-
-# Reddit API
-REDDIT_CLIENT_ID=your_reddit_client_id
-REDDIT_SECRET=your_reddit_secret
-REDDIT_USER_AGENT=your_user_agent
-
-# AI Models
-DEEPSEEK_API_KEY=your_deepseek_key
-OPENAI_API_KEY=your_openai_key
-HUGGINGFACE_API_KEY=your_huggingface_key
-
-# MBFC API
-RAPIDAPI_KEY=your_rapidapi_key
-
-# MySQL
-MYSQL_ROOT_PASSWORD=rootpassword
-MYSQL_DATABASE=mbfc
-MYSQL_USER=mbfc_user
-MYSQL_PASSWORD=mbfc_pass
-
-# VPS Configuration (used for deployment/DB sync)
-VPS_USER=ubuntu
-VPS_HOST=51.68.197.173
-VPS_PROJECT_PATH=/home/ubuntu/socialmediabias
-
-# URLs for Makefile automation
-URL_LOCAL=http://localhost:9005
-URL_PRODUCTION=https://smb.rami-abdelal.co.uk
-
-```
-
----
+## 🔄 Recent Changes (September 2025)
+- Next.js-only server: all APIs live under `frontend/src/app/api/*`; legacy `backend/` remains for history only.
+- Streaming analysis via SSE at `GET /api/analyze/stream` with phases: `reddit` → `mbfc` → `discussion` → `done` (and `error`).
+- Persistence added with Drizzle ORM (mysql2):
+  - Reuse existing tables: `mbfc.mbfc_sources` and `mbfc.analysis_results`.
+  - New additive table: `mbfc.ai_results` for AI response caching keyed by input hash.
+  - Safe migrations: no destructive changes; `mbfc_sources` is never dropped.
+- Caching:
+  - Redis is now REQUIRED for caching (set `REDIS_URL`).
+  - All cache reads/writes go through Redis; no in‑memory fallback.
+- DB host rule:
+  - In Docker (app on :9005): `MYSQL_HOST=mysql`.
+  - Local dev (Next.js at :3000): set `frontend/.env.local` `MYSQL_HOST=127.0.0.1`.
+- Drizzle CLI (run inside `frontend/`): `npm run db:generate` and `npm run db:migrate`.
 
 ## 📦 Docker Compose Configuration
 
@@ -428,6 +396,11 @@ Legacy Express backend removed; Next.js handles all API endpoints.
   - `mysql_data:/var/lib/mysql` (persistent data)
   # init.sql not auto-mounted; run once manually or use importer
 - **Environment**: Root password, database name, user credentials
+
+### Redis Service (required for caching)
+- Image: `redis:7-alpine`
+- Port: `6379:6379`
+- Memory policy: `volatile-lru`, 8 GB maxmemory (see `docker-compose.yml`).
 
 ---
 
@@ -454,10 +427,16 @@ cp .env.example .env  # Create from template
 # Bring up services
 docker compose up -d
 
-# Create schema (one-time)
-docker exec -i mysql mysql -u root -p$MYSQL_ROOT_PASSWORD < /home/ubuntu/socialmediabias/database/init.sql
+# Option A: Apply schema via Drizzle (recommended during development)
+cd frontend
+npm install
+npm run db:migrate
 
-# Import MBFC JSON (copy file to VPS first)
+# Option B: Apply schema via SQL (e.g., fresh VPS)
+# Note: ensure environment vars are loaded for mysql client
+docker exec -i mysql sh -lc 'export MYSQL_PWD="$MYSQL_ROOT_PASSWORD"; mysql -u root' < database/init.sql
+
+# Import MBFC JSON via streaming importer
 docker exec -it frontend sh -lc "node scripts/ingest-mbfc.mjs /app/database/mbfc-current.json"
 
 # Verify count
@@ -564,8 +543,7 @@ Frontend Enhancements
 
 Storage
 - [ ] Persist MBFC lookup results (avoid re-querying same domain per day)
-- [ ] (Δ) Table for cached AI analyses keyed by permalink/hash
- - [ ] (Δ) Lightweight local cache layer for per-session comment metadata parsing
+- [x] (Δ) Table for cached AI analyses keyed by input hash (`ai_results`)
 
 Infra / DevEx
 - [ ] Implement Makefile targets (deploy, db-export/import, logs, prune)
@@ -673,7 +651,7 @@ The included `mbfc-dataset-2025-08-05.json` contains MBFC records structured lik
 ]
 ```
 
-This JSON is parsed and loaded into MySQL via a TypeORM seeding script.
+This JSON is parsed and streamed into MySQL via `frontend/scripts/ingest-mbfc.mjs` (uses `stream-json`).
 
 ---
 
@@ -734,6 +712,11 @@ Notes:
 - Phase C (discussion) runs even when MBFC yields zero matches; in that case the AI prompt is anchored toward the POST TITLE and uses comment bodies + title for stance classification.
 - Confidence for the combined score scales with sample count, capped at 0.95.
 
+Persistence & caching specifics:
+- The final discussion result is cached in Redis for a short TTL (see `ANALYSIS_CACHE_TTL_MS`).
+- A summary row is persisted to `mbfc.analysis_results` on every run (including cache hits) with `communityName`, `platform='reddit'`, `biasScore` and `confidence` as strings, and a JSON `signalBreakdown`.
+- AI provider responses are cached by input hash (Redis) and upserted into `mbfc.ai_results`.
+
 ### Reddit API Backoff & Rate Limit Handling
 - Comment fetches use OAuth with 10s request timeout and exponential backoff with jitter on errors.
 - Specifically handles:
@@ -789,6 +772,37 @@ import { resolvePrompt } from '@/server/ai/prompts';
 const prompt = resolvePrompt('openai', 'stance_source', 'v1', overrideString);
 ```
 
+
+---
+
+## 📈 Analytics & Historical Charting
+
+Server helpers in `src/server/analytics.ts` power historical series for charts and CSV export:
+- `getSubredditSeries(name, sinceIso?, limit?)`: raw time-ordered rows of `biasScore`/`confidence`.
+- `getSubredditSeriesWithOptions(name, { sinceIso, limit, groupBy })`: supports grouping:
+  - `groupBy: 'none'` returns raw rows
+  - `groupBy: 'day'` returns UTC day-averaged points using SQL `DATE()` + `AVG()`
+
+API route `src/app/api/analytics/subreddit/[name]/route.ts` exposes this data with query params:
+- `since` (ISO), `limit` (<= 1000), `groupBy=none|day`, `format=json|csv` (CSV sets `Cache-Control: no-store`).
+
+Client integration in `components/SubredditResults.tsx`:
+- Range selector (7/30/90 days) and group-by (raw/per-day) control fetches.
+- Renders `components/chart-line-interactive.tsx` (Recharts) with UTC tooltip, legend, dual Y-axes.
+- On SSE completion (`phase=ready`), re-fetches analytics to hydrate chart with newly saved run.
+- CSV download link mirrors current controls; link to `/analytics/r/[subreddit]` shows a standalone analytics page defaulting to 30-day daily aggregation.
+
+## 💬 Discussion Table (shadcn-style)
+
+The legacy discussion results table was replaced by a lightweight shadcn-style data table:
+- Component: `components/DataTableDiscussion.tsx` (built on `@tanstack/react-table`).
+- Row type: `DiscussionRow` in `lib/types.ts`, derived from `discussionSignal.samples`.
+- Features: sorting by engagement (default desc), pagination, compact native `<table>` for minimal dependencies.
+- Integrated within `SubredditResults.tsx` under "Discussion Sentiment".
+
+Shared UI primitive:
+- A reusable shadcn-style `Table` lives at `components/ui/table.tsx` and provides `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`, `TableCaption`.
+- `DataTableDiscussion` now uses this primitive for structure and styling consistency with shadcn blocks.
 
 ---
 

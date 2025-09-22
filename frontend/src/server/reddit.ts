@@ -1,4 +1,6 @@
 import { Reddit, isSSERedditEvent, isSSEMBFCEvent, isSSEDiscussionEvent } from '@/lib/types';
+import { getCache, setCache } from '@/server/cache';
+import { POSTS_CACHE_TTL_MS, COMMENTS_CACHE_TTL_MS } from '@/server/config';
 import type { SubredditSuggestion } from '@/lib/types';
 
 let cachedToken: string | null = null;
@@ -37,14 +39,17 @@ export type RedditPostNode = {
 
 /** Fetch top posts for a subreddit path (e.g., r/worldnews) using OAuth token. */
 export async function fetchSubredditTopPosts(subredditPath: string, token: string, limit = 25, time = "month") {
+  const cacheKey = `reddit:posts:${subredditPath}:${time}:${limit}`;
+  const cached = await getCache<{ posts: RedditPostNode[] }>(cacheKey);
+  if (cached) return cached;
   const apiUrl = `https://oauth.reddit.com/${subredditPath}/top.json?limit=${limit}&t=${time}`;
-  const apiRes = await fetch(apiUrl, {
-    headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT },
-  });
+  const apiRes = await fetch(apiUrl, { headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT } });
   if (!apiRes.ok) throw new Error("Failed to fetch subreddit");
   const apiJson = await apiRes.json();
   const posts: RedditPostNode[] = apiJson?.data?.children || [];
-  return { posts };
+  const value = { posts };
+  await setCache(cacheKey, value, POSTS_CACHE_TTL_MS);
+  return value;
 }
 
 // Internal helpers for backoff
@@ -59,6 +64,9 @@ const headerNum = (h: Headers, key: string): number | null => {
 
 /** Fetch a comment thread JSON for a given permalink with retries, backoff, and timeout. */
 export async function fetchCommentsWithBackoff(permalink: string, token: string, timeoutMs = 10000): Promise<Reddit.APIResponse | null> {
+  const ckey = `reddit:comments:${permalink}:d1`;
+  const hit = await getCache<Reddit.APIResponse>(ckey);
+  if (hit) return hit;
   const url = `https://oauth.reddit.com${permalink}.json?limit=50&depth=1`;
   const maxRetries = 4;
   const baseDelay = 500; // ms
@@ -71,7 +79,12 @@ export async function fetchCommentsWithBackoff(permalink: string, token: string,
       const r = await fetch(url, { headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT }, signal: controller.signal });
       clearTimeout(t);
       if (r.ok) {
-        try { return (await r.json()) as Reddit.APIResponse; } catch { return null; }
+        try {
+          const body = (await r.json()) as Reddit.APIResponse;
+          // Cache successful parse only
+          await setCache(ckey, body, COMMENTS_CACHE_TTL_MS);
+          return body;
+        } catch { return null; }
       }
       const remaining = headerNum(r.headers, "x-ratelimit-remaining");
       const resetSec = headerNum(r.headers, "x-ratelimit-reset");

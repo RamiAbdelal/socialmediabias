@@ -11,6 +11,7 @@ services:
       - REDDIT_SECRET=${REDDIT_SECRET}
       - REDDIT_USER_AGENT=${REDDIT_USER_AGENT}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - REDIS_URL=${REDIS_URL}
       - MYSQL_HOST=mysql
       - MYSQL_USER=${MYSQL_USER}
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
@@ -21,6 +22,7 @@ services:
       - ./database:/app/database
     depends_on:
       - mysql
+      - redis
     env_file:
       - .env
 
@@ -62,6 +64,14 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "8gb", "--maxmemory-policy", "volatile-lru"]
+    ports:
+      - "6379:6379"
 
 volumes:
   mysql_data:

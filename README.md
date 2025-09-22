@@ -1,4 +1,3 @@
-
 # Social Media Political Bias Analyzer
 
 Bias analysis for social media communities (MVP: Reddit) using media source link bias (MBFC) plus an extensible signal model (future: comments sentiment, images, cross‑platform). Current implementation focuses on MBFC link analysis with incremental UX + data plumbing to enable upcoming AI-driven signals.
@@ -25,6 +24,11 @@ docker compose up -d --build
 # Initialize DB schema and ingest MBFC dataset
 make db-seed
 
+# (Optional) Apply schema changes via Drizzle CLI (from frontend/)
+cd frontend
+npm install
+npm run db:migrate
+
 # App is now available
 echo http://localhost:9005
 ```
@@ -46,6 +50,8 @@ MYSQL_PASSWORD=mbfc_pass
 MYSQL_DATABASE=mbfc
 DEEPSEEK_API_KEY=your_deepseek_key   # optional
 OPENAI_API_KEY=your_openai_key       # optional
+# Redis (required for caching). In Docker it's redis://redis:6379
+# REDIS_URL=redis://127.0.0.1:6379
 ```
 
 Rebuild the containerized app (served at http://localhost:9005):
@@ -62,6 +68,7 @@ Current MVP (implemented):
 - Next.js (App Router) only: server API routes handle all backend logic.
 - SSE streaming pipeline at `/api/analyze/stream` with phases: `reddit` → `mbfc` → `discussion` → `done` (and `error`).
 - MySQL 8 stores MBFC data. Import via streaming Node script and Makefile.
+- Summary persistence: per-run row saved to `analysis_results`; AI response caching persisted to `ai_results`.
 - On-demand endpoints: OG image fetch, Reddit thread fetch.
 - Documentation: `context.md` is the canonical architecture & operations doc.
 
@@ -197,6 +204,9 @@ MYSQL_ROOT_PASSWORD=rootpassword
 MYSQL_DATABASE=mbfc
 MYSQL_USER=mbfc_user
 MYSQL_PASSWORD=mbfc_pass
+
+# Redis (optional, used in Docker by default)
+REDIS_URL=redis://redis:6379
 ```
 
 ## 🎯 Feature Snapshot
@@ -224,6 +234,11 @@ Future / Later Phases:
 - Multi-platform (Instagram / X) & cross-domain correlation
 - Advanced metrics: Credibility (decoupled), Authoritarian–Libertarian, Economic axis
 - Observability: structured logging, metrics, tracing
+
+Persistence & caching snapshot:
+- MySQL stores MBFC dataset (`mbfc_sources`) and analysis summaries (`analysis_results`).
+- `ai_results` caches AI responses by input hash (provider/model + stance/alignment fields).
+- Redis is required for caching discussion results and AI responses (set `REDIS_URL`).
 
 ## 📊 API Endpoints (MVP)
 

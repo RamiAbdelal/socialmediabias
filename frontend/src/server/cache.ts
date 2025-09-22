@@ -1,29 +1,43 @@
-/**
- * Simple in-memory TTL cache for server-side usage.
- * Note: Resets on process restart. Keep TTLs modest to avoid stale data.
- */
-type Entry<T> = { value: T; expires: number };
+import { getRedis, hasRedis } from '@/server/redis';
 
-const store = new Map<string, Entry<unknown>>();
+const PREFIX = 'smb:';
 
-export function getCache<T>(key: string): T | null {
-  const e = store.get(key);
-  if (!e) return null;
-  if (Date.now() > e.expires) {
-    store.delete(key);
-    return null;
-  }
-  return e.value as T;
+export async function getCache<T>(key: string): Promise<T | null> {
+	if (!hasRedis()) throw new Error('Redis not configured (REDIS_URL missing)');
+	const r = getRedis();
+	if (!r) return null;
+	const val = await r.get(PREFIX + key);
+	if (!val) return null;
+	try { return JSON.parse(val) as T; } catch { return null; }
 }
 
-export function setCache<T>(key: string, value: T, ttlMs: number): void {
-  store.set(key, { value, expires: Date.now() + Math.max(0, ttlMs) });
+export async function setCache(key: string, value: unknown, ttlMs: number): Promise<void> {
+	if (!hasRedis()) throw new Error('Redis not configured (REDIS_URL missing)');
+	const r = getRedis();
+	if (!r) return;
+	const payload = JSON.stringify(value);
+	// PX expects milliseconds
+	await r.set(PREFIX + key, payload, 'PX', ttlMs);
 }
 
-export function delCache(key: string): void {
-  store.delete(key);
+export async function delCache(key: string): Promise<void> {
+	if (!hasRedis()) throw new Error('Redis not configured (REDIS_URL missing)');
+	const r = getRedis();
+	if (!r) return;
+	await r.del(PREFIX + key);
 }
 
-export function clearCache(): void {
-  store.clear();
+export async function clearCache(): Promise<void> {
+	if (!hasRedis()) throw new Error('Redis not configured (REDIS_URL missing)');
+	const r = getRedis();
+	if (!r) return;
+	// Avoid FLUSHALL; delete only our keys
+	const pattern = PREFIX + '*';
+	const stream = r.scanStream({ match: pattern, count: 100 });
+	const toDel: string[] = [];
+	for await (const keys of stream) {
+		for (const k of keys as string[]) toDel.push(k);
+		if (toDel.length >= 500) { await r.del(...toDel.splice(0, toDel.length)); }
+	}
+	if (toDel.length) await r.del(...toDel);
 }
