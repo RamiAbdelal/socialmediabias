@@ -7,7 +7,8 @@ import { popularSubreddits } from '@/lib/popularSubreddits.js';
 const CACHE = new LRUCache<string, SubredditSuggestion[]>(100);
 
 export function useSubredditSearch(query: string, limit = 10) {
-  const q = (query || '').trim();
+  const raw = (query || '').trim();
+  const [q, setQ] = useState(raw);
   const [items, setItems] = useState<SubredditSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,6 +22,12 @@ export function useSubredditSearch(query: string, limit = 10) {
       .filter(s => s.name.includes(lower))
       .slice(0, limit);
   }, [q, limit]);
+
+  // Debounce raw input → q
+  useEffect(() => {
+    const t = setTimeout(() => setQ(raw), 250);
+    return () => clearTimeout(t);
+  }, [raw]);
 
   useEffect(() => {
     setError(null);
