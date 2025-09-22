@@ -1,4 +1,5 @@
 import { Reddit, isSSERedditEvent, isSSEMBFCEvent, isSSEDiscussionEvent } from '@/lib/types';
+import type { SubredditSuggestion } from '@/lib/types';
 
 let cachedToken: string | null = null;
 let tokenExpiresAt = 0; // epoch ms
@@ -141,4 +142,44 @@ export function summarizeForLog(name: string, data: unknown) {
   } catch {
     return 'summary_failed';
   }
+}
+
+type RedditSubredditData = {
+  display_name?: string;
+  title?: string;
+  public_description?: string;
+  subscribers?: number;
+  over18?: boolean;
+  over_18?: boolean;
+  icon_img?: string;
+  community_icon?: string;
+  banner_img?: string;
+};
+
+/** Search subreddits by name using Reddit OAuth API and normalize results. */
+export async function searchSubreddits(query: string, token: string, limit = 10): Promise<SubredditSuggestion[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const url = new URL('https://oauth.reddit.com/subreddits/search');
+  url.searchParams.set('q', q);
+  url.searchParams.set('limit', String(Math.min(Math.max(limit, 5), 20)));
+  url.searchParams.set('include_over_18', 'off');
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}`, 'User-Agent': USER_AGENT },
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const children = data?.data?.children as Array<{ kind: string; data: RedditSubredditData }> | undefined;
+  if (!Array.isArray(children)) return [];
+  return children.map((c) => {
+    const d: RedditSubredditData = c.data || {};
+    const display = (d.display_name as string | undefined) || '';
+    const name = display ? `r/${display}` : '';
+    const title = (d.title as string | undefined) || (d.public_description as string | undefined) || '';
+    const subscribers = typeof d.subscribers === 'number' ? d.subscribers : undefined;
+    const nsfw = Boolean(d.over18 || d.over_18);
+    const icon = (d.icon_img || d.community_icon || d.banner_img || '') as string;
+    return { name, title, subscribers, nsfw, icon } satisfies SubredditSuggestion;
+  }).filter(s => !!s.name);
 }

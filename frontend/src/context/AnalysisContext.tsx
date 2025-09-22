@@ -62,7 +62,6 @@ export function AnalysisProvider({ children }: { children: ReactNode }) {
 
     if (!url.trim()) return;
 
-    // Derive community name (subreddit) if present in URL
     const match = url.match(/reddit\.com\/(r\/[^/]+)/i);
 
     if (match) {

@@ -184,7 +184,7 @@ export function computeLean(
   for (const s of samples) {
     // Determine base stance score (0..10)
     const mbfcBase = mapBiasToScore(s.bias);
-  const aiBase = (s.aiMeta?.stanceScore != null
+    const aiBase = (s.aiMeta?.stanceScore != null
       ? s.aiMeta?.stanceScore
       : (s.aiMeta?.stanceLabel ? mapBiasToScore(s.aiMeta.stanceLabel) : null));
 

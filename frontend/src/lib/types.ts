@@ -134,6 +134,16 @@ export interface SubredditResultsProps {
   isLoading: boolean;
 }
 
+// Suggestions used by autocomplete/search
+export interface SubredditSuggestion {
+  name: string;          // 'r/news'
+  title?: string;        // Subreddit title/description
+  subscribers?: number;  // subscriber count
+  activeUsers?: number;  // active user count if available
+  nsfw?: boolean;        // over_18 flag
+  icon?: string;         // icon image URL
+}
+
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace Reddit {
   // Root response for a Reddit post + comments

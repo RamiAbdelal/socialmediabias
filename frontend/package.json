@@ -8,31 +8,32 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "ingest:mbfc": "node scripts/ingest-mbfc.mjs"
+    "ingest:mbfc": "node scripts/ingest-mbfc.mjs",
+    "smoke:search": "node ./scripts/smoke-search.mjs news"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.0",
-    "clsx": "^2.1.1",
-    "dotenv": "^16.4.5",
-    "framer-motion": "^12.23.12",
-    "gsap": "^3.13.0",
-    "lucide-react": "^0.453.0",
-    "mysql2": "^3.11.3",
+    "class-variance-authority": "0.7.0",
+    "clsx": "2.1.1",
+    "dotenv": "16.4.5",
+    "framer-motion": "12.23.12",
+    "gsap": "3.13.0",
+    "lucide-react": "0.453.0",
+    "mysql2": "3.11.3",
     "next": "15.4.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "stream-json": "^1.8.0",
-    "tailwind-merge": "^2.5.2"
+    "stream-json": "1.8.0",
+    "tailwind-merge": "2.5.2"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
+    "@eslint/eslintrc": "3",
+    "@tailwindcss/postcss": "4",
     "@types/node": "^20",
-    "@types/react": "^19",
+    "@types/react": "19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
+    "eslint": "9",
     "eslint-config-next": "15.4.5",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "tailwindcss": "4",
+    "typescript": "5"
   }
 }
