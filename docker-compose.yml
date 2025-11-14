@@ -22,7 +22,7 @@ services:
       - ./database:/app/database
     depends_on:
       - mysql
-      - redis
+      # - redis
     env_file:
       - .env
 
